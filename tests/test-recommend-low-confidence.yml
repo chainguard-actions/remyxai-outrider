@@ -1,0 +1,55 @@
+name: Test recommend mode with low confidence threshold and disabled rate limit
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_REF: refs/heads/main
+      GITHUB_EVENT_NAME: push
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        with:
+          interest-id: '00000000-0000-0000-0000-000000000000'
+          mode: 'recommend'
+          min-confidence: 'low'
+          draft-mode: 'never'
+          rate-limit-days: '0'
+          lookback: 'today'
+          candidate-pool: '5'
+          claude-timeout: '60'
+          test-integration-policy: 'off'
+        continue-on-error: true
+
+      - name: Assert status output is set
+        env:
+          ACTUAL: ${{ steps.action.outputs.status }}
+        run: |
+          echo "actual status: $ACTUAL"
+          if [ -z "$ACTUAL" ]; then
+            echo "FAIL: expected status output to be non-empty"
+            exit 1
+          fi
+          echo "PASS: status is '$ACTUAL'"
+
+      - name: Assert status is a known terminal value
+        env:
+          ACTUAL: ${{ steps.action.outputs.status }}
+        run: |
+          echo "actual status: $ACTUAL"
+          case "$ACTUAL" in
+            pr_opened|pr_opened_draft|issue_opened|\
+            skipped_low_confidence|skipped_rate_limit|\
+            skipped_pr_exists|skipped_issue_exists|\
+            skipped_test_failure|claude_failed|\
+            rejected_path_violations|error)
+              echo "PASS: status '$ACTUAL' is a known terminal value"
+              ;;
+            *)
+              echo "FAIL: status '$ACTUAL' is not a recognized terminal value"
+              exit 1
+              ;;
+          esac
