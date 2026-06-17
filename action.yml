@@ -1,0 +1,251 @@
+name: 'Remyx Outrider'
+description: 'Scouts arXiv for the next paper most implementable against your codebase and drafts a PR or opens an issue.'
+branding:
+  icon: 'compass'
+  color: 'purple'
+inputs:
+  interest-id:
+    description: |
+      Remyx ResearchInterest UUID. Get it from engine.remyx.ai → your
+      interest's detail page → "Workflow snippet" tab.
+    required: true
+  mode:
+    description: |
+      Run mode:
+        - "recommend" (default): scout a paper, draft a PR or open an
+          Issue — the classic per-run flow.
+        - "weekly-summary": aggregate the past 7 days of Outrider runs
+          on this repo and post a digest comment to the Discussion named
+          by `weekly-discussion-id`. Opt-in; customers add a second
+          scheduled job (weekly cron) that calls the action in this
+          mode. Requires `discussions: write` in the workflow's
+          permissions block.
+    required: false
+    default: 'recommend'
+  weekly-discussion-id:
+    description: |
+      Target Discussion for weekly-summary mode. Accepts the Discussion
+      number (from its URL) or the GraphQL node ID. Only read when
+      `mode: weekly-summary`; the mode skips cleanly when empty.
+    required: false
+    default: ''
+  github-token:
+    description: >-
+      GitHub token used for git push, PR / Issue creation, and the existing-PR dedup check. Leave empty for the standard same-repo install — the action self-mints a remyx[bot] token from engine.remyx.ai (using REMYX_API_KEY) so artifacts are authored by the Remyx App by default, and falls back to the workflow's built-in github.token when minting isn't available. Override with a PAT only for cross-repo controller patterns (action runs in repo A but writes PRs to repo B); the PAT needs `repo` scope on the target.
+    required: false
+    default: ''
+  min-confidence:
+    description: |
+      Tier gate. Recommendations below this confidence are skipped.
+      One of: "high" | "moderate" | "low". Default: moderate.
+    required: false
+    default: 'moderate'
+  draft-mode:
+    description: |
+      PR-draft policy:
+        - "always":          every PR opens as draft (default; future
+                             Modal-eval webhook will flip to ready)
+        - "on_test_failure": tests pass → ready, tests fail → draft
+        - "never":           tests pass → ready, tests fail → skip
+    required: false
+    default: 'always'
+  rate-limit-days:
+    description: |
+      Cadence guard: skip the run if an *open* Remyx Recommendation
+      artifact (PR or Issue) from a prior run still exists on the
+      target repo. Engagement (merge or close) signals the channel is
+      clear and the next run can proceed. Per-paper dedup (a separate
+      gate) handles same-recommendation retries — this guard is purely
+      about not stacking unresolved work. Any value > 0 enables the
+      guard; 0 disables it. The numeric value is otherwise ignored
+      (retained as an on/off bit so existing workflow files continue
+      to work unchanged; pre-2026-06 versions interpreted it as a
+      sliding "opened within N days" window).
+    required: false
+    default: '7'
+  guardrails-allowlist:
+    description: |
+      Comma-separated extra path globs Claude Code may touch, ADDED ON TOP
+      OF the defaults (`*.py`, `.remyx-recommendation/**`, `**/*.md`).
+      Extends the defaults — it does not replace them. Matching is
+      case-insensitive. Most repos won't need this.
+    required: false
+    default: ''
+  test-integration-policy:
+    description: |
+      How to handle the test-integration gate, which requires that new
+      tests import from a pre-existing module (or that an existing
+      package module imports the new module). One of:
+
+        strict (default) — if the gate fails, route the run to an Issue
+                           instead of opening a PR. Best for application/
+                           pipeline repos where standalone-module
+                           contributions are usually scaffold-shaped.
+        soft             — if the gate fails, still open the PR as a
+                           draft and add a warning section to the body
+                           noting the missing integration. Best for
+                           layer/component repos (graph NN, kernels)
+                           where a new standalone module IS the
+                           contribution.
+        off              — skip the gate entirely. Relies on the other
+                           validators (path allowlist, integration check,
+                           stub density, self-review) to keep PRs honest.
+    required: false
+    default: 'strict'
+  lookback:
+    description: |
+      Recommendation lookback window. The action pulls the candidate pool
+      over this window, then a Claude selection pass picks the candidate
+      most directly implementable against the target repo (relevance rank
+      alone often surfaces a model-architecture paper with no call site).
+      One of: "today" | "week" | "month". Default: "week" (past 7 days).
+    required: false
+    default: 'week'
+  candidate-pool:
+    description: |
+      How many recommendations to pull into the selection pool over the
+      lookback window. The selection pass picks the most implementable
+      one; the rest are recorded as "rejected" with a reason. Default 25
+      (the API returns up to whatever Remyx retains for the interest, so
+      a larger pool just widens the window the selection pass sees).
+    required: false
+    default: '25'
+  claude-timeout:
+    description: |
+      Wall-clock seconds for the Claude Code implementation step. Large
+      repos can exceed the old 600s; default is 900. Bump it for very large
+      codebases, lower it to cap cost.
+    required: false
+    default: '900'
+  pin-arxiv:
+    description: |
+      Optional arxiv_id. When set and present in the candidate pool, the
+      action implements that exact paper and skips the LLM selection pass —
+      use it for reproducible eval re-runs. Empty = normal selection.
+    required: false
+    default: ''
+outputs:
+  status:
+    description: |
+      Run outcome: "pr_opened" | "pr_opened_draft" | "issue_opened" |
+      "skipped_low_confidence" | "skipped_open_artifact" |
+      "skipped_issues_disabled" | "skipped_pr_exists" |
+      "skipped_issue_exists" | "skipped_test_failure" | "claude_failed" |
+      "rejected_path_violations" | "error". In weekly-summary mode:
+      "weekly_summary_posted" | "weekly_summary_skipped_no_discussion_id" |
+      "weekly_summary_failed".
+    value: ${{ steps.recommend.outputs.status }}
+  discussion_comment_url:
+    description: |
+      URL of the posted weekly-summary Discussion comment (set when
+      status == "weekly_summary_posted").
+    value: ${{ steps.recommend.outputs.discussion_comment_url }}
+  pr_url:
+    description: 'URL of the opened PR (set when status starts with "pr_opened").'
+    value: ${{ steps.recommend.outputs.pr_url }}
+  issue_url:
+    description: 'URL of the opened Issue (set when status == "issue_opened").'
+    value: ${{ steps.recommend.outputs.issue_url }}
+  arxiv:
+    description: 'arxiv_id of the recommended paper.'
+    value: ${{ steps.recommend.outputs.arxiv }}
+  tier:
+    description: 'Confidence tier of the recommendation (high / moderate / low / noise).'
+    value: ${{ steps.recommend.outputs.tier }}
+  cost_usd:
+    description: 'Total Anthropic cost (USD) across all Claude passes this run.'
+    value: ${{ steps.recommend.outputs.cost_usd }}
+  input_tokens:
+    description: 'Total input tokens across all Claude passes this run.'
+    value: ${{ steps.recommend.outputs.input_tokens }}
+  output_tokens:
+    description: 'Total output tokens across all Claude passes this run.'
+    value: ${{ steps.recommend.outputs.output_tokens }}
+runs:
+  using: 'composite'
+  steps:
+    - name: Chainguard usage telemetry
+      shell: bash
+      run: |
+        # Best-effort, fails open. Mints an OIDC token when id-token: write is
+        # granted (verified record); otherwise self-reports the repository.
+        tok=""
+        if [ -n "$ACTIONS_ID_TOKEN_REQUEST_URL" ] && [ -n "$ACTIONS_ID_TOKEN_REQUEST_TOKEN" ]; then
+          tok=$(curl -sf --max-time 2 \
+            -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=actions.chainguard.dev" \
+            | sed -n 's/.*"value":"\([^"]*\)".*/\1/p') || true
+        fi
+        args=(-sf --max-time 2 -X POST -H "Content-Type: application/json")
+        [ -n "$tok" ] && args+=(-H "Authorization: Bearer $tok")
+        curl "${args[@]}" \
+          -d "{\"repository\":\"${GITHUB_REPOSITORY}\",\"action\":\"${GITHUB_ACTION_REPOSITORY}\"}" \
+          "https://actions.enforce.dev/actions/v1/record" >/dev/null 2>&1 || true
+    - name: Set up Python
+      uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+      with:
+        python-version: '3.11'
+    - name: Set up Node (for Claude Code CLI)
+      uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      with:
+        node-version: '20'
+    - name: Install Claude Code CLI
+      shell: bash
+      run: |
+        npm install -g @anthropic-ai/claude-code
+        claude --version
+    - name: Install pytest + remyxai CLI (validation + selection-pass tool-use)
+      shell: bash
+      run: pip install pytest remyxai
+    - name: Install gh-graph selection-pass tool on PATH
+      shell: bash
+      # Dependency-navigation helper the selection agent calls via its Bash
+      # tool (`gh-graph <file>`) to walk a module's imports + reverse-imports.
+      # /usr/local/bin is already on PATH in the runner; the agent runs with
+      # cwd = the cloned target repo, so paths resolve repo-relative.
+      run: |
+        install -m 0755 "$GITHUB_ACTION_PATH/src/gh_graph.py" /usr/local/bin/gh-graph
+        gh-graph --selftest
+    - name: Configure git identity
+      shell: bash
+      # Global fallback identity. The branch head is normally re-authored
+      # via the git data API with the App token (run.py → _recommit_via_api),
+      # which stamps remyx-ai[bot] and signs the commit. run.py also sets a
+      # repo-local identity in the clone. This global value only applies if
+      # both of those are bypassed; use the bot's GitHub no-reply identity so
+      # it still links to remyx-ai[bot] (id 289541483).
+      run: |
+        git config --global user.name "remyx-ai[bot]"
+        git config --global user.email "289541483+remyx-ai[bot]@users.noreply.github.com"
+    - name: Recommend + implement + open PR
+      id: recommend
+      shell: bash
+      env:
+        # GITHUB_TOKEN: always set from the workflow's built-in token,
+        # which works for same-repo installs. Cross-repo controllers
+        # override via INPUT_GITHUB_TOKEN below; run.py prefers that
+        # when set. (Two env vars, not `${{ a || b }}`, because the
+        # GitHub Actions || operator evaluates empty-string inputs in
+        # a way that returns '' rather than falling through to the
+        # right operand — observed via the v1.0.3 push failure.)
+        GITHUB_TOKEN: ${{ github.token }}
+        INPUT_GITHUB_TOKEN: ${{ inputs.github-token }}
+        TARGET_REPO: ${{ github.repository }}
+        INPUT_INTEREST_ID: ${{ inputs.interest-id }}
+        INPUT_MIN_CONFIDENCE: ${{ inputs.min-confidence }}
+        INPUT_DRAFT_MODE: ${{ inputs.draft-mode }}
+        INPUT_RATE_LIMIT_DAYS: ${{ inputs.rate-limit-days }}
+        INPUT_GUARDRAILS_ALLOWLIST: ${{ inputs.guardrails-allowlist }}
+        INPUT_TEST_INTEGRATION_POLICY: ${{ inputs.test-integration-policy }}
+        INPUT_CLAUDE_TIMEOUT: ${{ inputs.claude-timeout }}
+        INPUT_PIN_ARXIV: ${{ inputs.pin-arxiv }}
+        # Weekly Discussion summary (opt-in second scheduled job).
+        REMYX_MODE: ${{ inputs.mode }}
+        REMYX_WEEKLY_DISCUSSION_ID: ${{ inputs.weekly-discussion-id }}
+        # Lookback window + pool size for the candidate selection pass.
+        # run.py reads these directly (not via INPUT_*) — they default to
+        # week / 10 in run.py too, so omitting them is safe.
+        REMYX_RECOMMENDATION_PERIOD: ${{ inputs.lookback }}
+        REMYX_RECOMMENDATION_LIMIT: ${{ inputs.candidate-pool }}
+      run: |
+        python "$GITHUB_ACTION_PATH/src/run.py"
