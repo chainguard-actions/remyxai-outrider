@@ -1,0 +1,44 @@
+name: Test basic usage with required input
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        with:
+          interest-id: 'test-interest-id-00000000-0000-0000-0000-000000000000'
+        continue-on-error: true
+
+      - name: Assert status output is set
+        env:
+          STATUS: ${{ steps.action.outputs.status }}
+        run: |
+          echo "status: $STATUS"
+          if [ -z "$STATUS" ]; then
+            echo "FAIL: expected status output to be set (even on error)"
+            exit 1
+          fi
+          echo "PASS: status=$STATUS"
+
+      - name: Assert status is a known value
+        env:
+          STATUS: ${{ steps.action.outputs.status }}
+        run: |
+          echo "status: $STATUS"
+          case "$STATUS" in
+            pr_opened|pr_opened_draft|issue_opened|\
+            skipped_low_confidence|skipped_rate_limit|\
+            skipped_pr_exists|skipped_issue_exists|\
+            skipped_test_failure|claude_failed|\
+            rejected_path_violations|error)
+              echo "PASS: status '$STATUS' is a known value"
+              ;;
+            *)
+              echo "FAIL: status '$STATUS' is not a recognized output value"
+              exit 1
+              ;;
+          esac
