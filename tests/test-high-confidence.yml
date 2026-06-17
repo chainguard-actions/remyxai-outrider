@@ -1,0 +1,54 @@
+name: Test high min-confidence setting
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_REF: refs/heads/main
+      GITHUB_EVENT_NAME: push
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        with:
+          interest-id: 'test-interest-uuid-9999'
+          mode: 'recommend'
+          min-confidence: 'high'
+          draft-mode: 'never'
+          rate-limit-days: '0'
+          lookback: 'today'
+          candidate-pool: '5'
+          claude-timeout: '300'
+        continue-on-error: true
+
+      - name: Assert status output is set
+        env:
+          STATUS: ${{ steps.action.outputs.status }}
+        run: |
+          echo "status: $STATUS"
+          if [ -z "$STATUS" ]; then
+            echo "FAIL: expected status output to be non-empty"
+            exit 1
+          fi
+          echo "PASS: status is '$STATUS'"
+
+      - name: Assert status is a known value
+        env:
+          STATUS: ${{ steps.action.outputs.status }}
+        run: |
+          echo "status: $STATUS"
+          case "$STATUS" in
+            pr_opened|pr_opened_draft|issue_opened|\
+            skipped_low_confidence|skipped_rate_limit|\
+            skipped_pr_exists|skipped_issue_exists|\
+            skipped_test_failure|claude_failed|\
+            rejected_path_violations|error)
+              echo "PASS: status '$STATUS' is a recognized value"
+              ;;
+            *)
+              echo "FAIL: status '$STATUS' is not a recognized value"
+              exit 1
+              ;;
+          esac

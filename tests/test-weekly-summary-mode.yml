@@ -1,0 +1,48 @@
+name: Test weekly-summary mode
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_REF: refs/heads/main
+      GITHUB_EVENT_NAME: schedule
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        with:
+          interest-id: 'test-interest-uuid-5678'
+          mode: 'weekly-summary'
+          weekly-discussion-id: ''
+        continue-on-error: true
+
+      - name: Assert status output is set
+        env:
+          STATUS: ${{ steps.action.outputs.status }}
+        run: |
+          echo "status: $STATUS"
+          if [ -z "$STATUS" ]; then
+            echo "FAIL: expected status output to be non-empty"
+            exit 1
+          fi
+          echo "PASS: status is '$STATUS'"
+
+      - name: Assert status is a known weekly-summary value
+        env:
+          STATUS: ${{ steps.action.outputs.status }}
+        run: |
+          echo "status: $STATUS"
+          case "$STATUS" in
+            weekly_summary_posted|\
+            weekly_summary_skipped_no_discussion_id|\
+            weekly_summary_failed|\
+            error)
+              echo "PASS: status '$STATUS' is a recognized weekly-summary-mode value"
+              ;;
+            *)
+              echo "FAIL: status '$STATUS' is not a recognized weekly-summary-mode value"
+              exit 1
+              ;;
+          esac
