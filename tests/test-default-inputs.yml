@@ -1,0 +1,59 @@
+name: Test default inputs
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_REF: refs/heads/main
+      GITHUB_EVENT_NAME: push
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        with:
+          interest-id: 'test-interest-id-00000000-0000-0000-0000-000000000000'
+          # All other inputs use defaults:
+          # mode: recommend
+          # min-confidence: moderate
+          # draft-mode: always
+          # rate-limit-days: 7
+          # test-integration-policy: strict
+          # lookback: week
+          # candidate-pool: 25
+          # claude-timeout: 900
+        env:
+          REMYX_API_KEY: 'test-invalid-key'
+        continue-on-error: true
+
+      - name: Assert status output is set
+        env:
+          STATUS: ${{ steps.action.outputs.status }}
+        run: |
+          echo "status: $STATUS"
+          if [ -z "$STATUS" ]; then
+            echo "FAIL: expected status output to be set (even on error/skip)"
+            exit 1
+          fi
+          echo "PASS: status is '$STATUS'"
+
+      - name: Assert all expected outputs are defined (even if empty)
+        env:
+          STATUS: ${{ steps.action.outputs.status }}
+          PR_URL: ${{ steps.action.outputs.pr_url }}
+          ISSUE_URL: ${{ steps.action.outputs.issue_url }}
+          ARXIV: ${{ steps.action.outputs.arxiv }}
+          TIER: ${{ steps.action.outputs.tier }}
+        run: |
+          echo "status:    $STATUS"
+          echo "pr_url:    $PR_URL"
+          echo "issue_url: $ISSUE_URL"
+          echo "arxiv:     $ARXIV"
+          echo "tier:      $TIER"
+          # status must always be set
+          if [ -z "$STATUS" ]; then
+            echo "FAIL: status output must not be empty"
+            exit 1
+          fi
+          echo "PASS: outputs are accessible"

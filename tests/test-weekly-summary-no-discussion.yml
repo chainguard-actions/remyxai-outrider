@@ -1,0 +1,49 @@
+name: Test weekly-summary mode with no discussion ID
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_REF: refs/heads/main
+      GITHUB_EVENT_NAME: push
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        with:
+          interest-id: 'test-interest-id-00000000-0000-0000-0000-000000000000'
+          mode: 'weekly-summary'
+          weekly-discussion-id: ''
+        env:
+          REMYX_API_KEY: 'test-invalid-key'
+        continue-on-error: true
+
+      - name: Assert status output is set
+        env:
+          STATUS: ${{ steps.action.outputs.status }}
+        run: |
+          echo "status: $STATUS"
+          if [ -z "$STATUS" ]; then
+            echo "FAIL: expected status output to be set"
+            exit 1
+          fi
+          echo "PASS: status is '$STATUS'"
+
+      - name: Assert status is a known weekly-summary value
+        env:
+          STATUS: ${{ steps.action.outputs.status }}
+        run: |
+          echo "status: $STATUS"
+          case "$STATUS" in
+            weekly_summary_posted|\
+            weekly_summary_skipped_no_discussion_id|\
+            weekly_summary_failed)
+              echo "PASS: status '$STATUS' is a known weekly-summary value"
+              ;;
+            *)
+              echo "FAIL: unexpected status value '$STATUS' for weekly-summary mode"
+              exit 1
+              ;;
+          esac
