@@ -1,0 +1,32 @@
+name: Test weekly-summary mode with no discussion ID
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_REF: refs/heads/main
+      GITHUB_EVENT_NAME: schedule
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        with:
+          interest-id: 'test-interest-id-placeholder'
+          mode: 'weekly-summary'
+          weekly-discussion-id: ''
+        env:
+          REMYX_API_KEY: ''
+        continue-on-error: true
+
+      - name: Assert status is weekly_summary_skipped_no_discussion_id
+        env:
+          ACTUAL: ${{ steps.action.outputs.status }}
+        run: |
+          echo "actual status: $ACTUAL"
+          if [ "$ACTUAL" != "weekly_summary_skipped_no_discussion_id" ]; then
+            echo "FAIL: expected 'weekly_summary_skipped_no_discussion_id', got '$ACTUAL'"
+            exit 1
+          fi
+          echo "PASS"

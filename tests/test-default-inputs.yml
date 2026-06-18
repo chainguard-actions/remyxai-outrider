@@ -1,0 +1,39 @@
+name: Test action with default optional inputs
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_REF: refs/heads/main
+      GITHUB_EVENT_NAME: push
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        with:
+          interest-id: 'test-interest-id-placeholder'
+          # All other inputs use their defaults:
+          # mode: recommend
+          # min-confidence: moderate
+          # draft-mode: always
+          # rate-limit-days: 7
+          # test-integration-policy: strict
+          # lookback: week
+          # candidate-pool: 25
+          # claude-timeout: 900
+        env:
+          REMYX_API_KEY: ''
+        continue-on-error: true
+
+      - name: Assert action completed with a status output
+        env:
+          ACTUAL: ${{ steps.action.outputs.status }}
+        run: |
+          echo "actual status: $ACTUAL"
+          if [ -z "$ACTUAL" ]; then
+            echo "FAIL: expected a non-empty status output from action"
+            exit 1
+          fi
+          echo "PASS: action completed with status '$ACTUAL'"
