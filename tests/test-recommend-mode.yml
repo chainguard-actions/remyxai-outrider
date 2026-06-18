@@ -1,0 +1,37 @@
+name: Test recommend mode (basic)
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_REF: refs/heads/main
+      GITHUB_EVENT_NAME: push
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        with:
+          interest-id: 'test-interest-id-00000000-0000-0000-0000-000000000000'
+          mode: 'recommend'
+          min-confidence: 'moderate'
+          draft-mode: 'always'
+          rate-limit-days: '0'
+          lookback: 'week'
+          candidate-pool: '5'
+          claude-timeout: '60'
+        env:
+          REMYX_API_KEY: 'test-invalid-key'
+        continue-on-error: true
+
+      - name: Assert status output is set
+        env:
+          ACTUAL: ${{ steps.action.outputs.status }}
+        run: |
+          echo "actual status: $ACTUAL"
+          if [ -z "$ACTUAL" ]; then
+            echo "FAIL: expected status output to be non-empty"
+            exit 1
+          fi
+          echo "PASS: status output is set to '$ACTUAL'"
