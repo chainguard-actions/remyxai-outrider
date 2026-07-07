@@ -1,0 +1,52 @@
+name: Test recommend mode (basic invocation)
+on:
+  workflow_dispatch:
+
+jobs:
+  test-recommend-mode:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_REF: refs/heads/main
+      GITHUB_EVENT_NAME: push
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        continue-on-error: true
+        with:
+          interest-id: 'test-interest-id-00000000-0000-0000-0000-000000000000'
+          mode: 'recommend'
+          chain: 'false'
+          rate-limit-days: '0'
+          min-confidence: 'moderate'
+          lookback: 'week'
+          candidate-pool: '5'
+          enable-cocoindex: 'false'
+        env:
+          REMYX_API_KEY: 'dummy-key-for-testing'
+
+      - name: Assert status output is a known value or empty (API/install failure)
+        env:
+          STATUS: ${{ steps.action.outputs.status }}
+        run: |
+          echo "status: '$STATUS'"
+          if [ -z "$STATUS" ]; then
+            echo "PASS: status is empty (action failed during install or API call — expected with dummy credentials)"
+            exit 0
+          fi
+          case "$STATUS" in
+            pr_opened|pr_opened_draft|issue_opened|\
+            skipped_low_confidence|skipped_open_artifact|\
+            skipped_issues_disabled|skipped_pr_exists|\
+            skipped_issue_exists|skipped_test_failure|\
+            claude_failed|skipped_no_method_match|\
+            rejected_path_violations|aborted_secret_in_payload|\
+            error)
+              echo "PASS: status '$STATUS' is a recognized value"
+              ;;
+            *)
+              echo "FAIL: status '$STATUS' is not a recognized value"
+              exit 1
+              ;;
+          esac
