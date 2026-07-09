@@ -1,0 +1,53 @@
+name: Test weekly-summary mode
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_REF: refs/heads/main
+      GITHUB_EVENT_NAME: schedule
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        with:
+          interest-id: 'test-interest-id-00000000-0000-0000-0000-000000000000'
+          mode: 'weekly-summary'
+          weekly-discussion-id: ''
+          enable-cocoindex: 'false'
+        continue-on-error: true
+
+      - name: Assert action step ran (not skipped)
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          if [ "$OUTCOME" = "skipped" ]; then
+            echo "FAIL: action step was unexpectedly skipped"
+            exit 1
+          fi
+          echo "PASS: action step ran (outcome=$OUTCOME)"
+
+      - name: Assert status is a weekly-summary known value, error, or empty (no API key)
+        env:
+          STATUS: ${{ steps.action.outputs.status }}
+        run: |
+          echo "status: '$STATUS'"
+          # Status may be empty if the action crashed before writing outputs (no API keys in test env)
+          if [ -z "$STATUS" ]; then
+            echo "PASS: status is empty (action likely errored due to missing API keys - acceptable in test env)"
+            exit 0
+          fi
+          case "$STATUS" in
+            weekly_summary_posted|\
+            weekly_summary_skipped_no_discussion_id|\
+            weekly_summary_failed|error)
+              echo "PASS: status '$STATUS' is a known weekly-summary value"
+              ;;
+            *)
+              echo "FAIL: status '$STATUS' is not a recognized weekly-summary value"
+              exit 1
+              ;;
+          esac

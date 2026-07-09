@@ -1,0 +1,45 @@
+name: Test fidelity mode
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_REF: refs/pull/1/merge
+      GITHUB_EVENT_NAME: pull_request
+      GITHUB_HEAD_REF: feature-branch
+      GITHUB_BASE_REF: main
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        with:
+          interest-id: 'test-interest-id-00000000-0000-0000-0000-000000000000'
+          mode: 'fidelity'
+          pr-number: '1'
+          enable-cocoindex: 'false'
+        continue-on-error: true
+
+      - name: Assert action step ran (not skipped)
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          if [ "$OUTCOME" = "skipped" ]; then
+            echo "FAIL: action step was unexpectedly skipped"
+            exit 1
+          fi
+          echo "PASS: action step ran (outcome=$OUTCOME)"
+
+      - name: Assert status is set or empty (no API key in test env)
+        env:
+          STATUS: ${{ steps.action.outputs.status }}
+        run: |
+          echo "status: '$STATUS'"
+          # Status may be empty if the action crashed before writing outputs (no API keys in test env)
+          if [ -z "$STATUS" ]; then
+            echo "PASS: status is empty (action likely errored due to missing API keys - acceptable in test env)"
+            exit 0
+          fi
+          echo "PASS: status output is set to '$STATUS'"

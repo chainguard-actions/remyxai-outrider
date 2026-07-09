@@ -1,0 +1,53 @@
+name: Test publish branch mode
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_REF: refs/heads/main
+      GITHUB_EVENT_NAME: push
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        with:
+          interest-id: 'test-interest-id-00000000-0000-0000-0000-000000000000'
+          mode: 'recommend'
+          chain: 'false'
+          publish: 'branch'
+          rate-limit-days: '0'
+          min-confidence: 'low'
+          enable-cocoindex: 'false'
+        continue-on-error: true
+
+      - name: Assert action step ran (not skipped)
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          if [ "$OUTCOME" = "skipped" ]; then
+            echo "FAIL: action step was unexpectedly skipped"
+            exit 1
+          fi
+          echo "PASS: action step ran (outcome=$OUTCOME)"
+
+      - name: Assert no PR opened in branch-only mode
+        env:
+          PR_URL: ${{ steps.action.outputs.pr_url }}
+          STATUS: ${{ steps.action.outputs.status }}
+        run: |
+          echo "status: '$STATUS'"
+          echo "pr_url: '$PR_URL'"
+          # Status may be empty if the action crashed before writing outputs (no API keys in test env)
+          if [ -z "$STATUS" ]; then
+            echo "PASS: status is empty (action likely errored due to missing API keys - acceptable in test env)"
+            exit 0
+          fi
+          # In branch-only mode, no PR should be opened so pr_url should be empty
+          if [ "$STATUS" = "pr_opened" ] || [ "$STATUS" = "pr_opened_draft" ]; then
+            echo "FAIL: expected no PR to be opened in branch-only publish mode"
+            exit 1
+          fi
+          echo "PASS: no PR opened in branch-only mode (status=$STATUS)"

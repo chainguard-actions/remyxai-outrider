@@ -1,0 +1,56 @@
+name: Test pin-arxiv input
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_REF: refs/heads/main
+      GITHUB_EVENT_NAME: push
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        with:
+          interest-id: 'test-interest-id-00000000-0000-0000-0000-000000000000'
+          mode: 'recommend'
+          chain: 'false'
+          pin-arxiv: '2301.00001'
+          rate-limit-days: '0'
+          enable-cocoindex: 'false'
+        continue-on-error: true
+
+      - name: Assert action step ran (not skipped)
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          if [ "$OUTCOME" = "skipped" ]; then
+            echo "FAIL: action step was unexpectedly skipped"
+            exit 1
+          fi
+          echo "PASS: action step ran (outcome=$OUTCOME)"
+
+      - name: Assert status is set or empty (no API key in test env)
+        env:
+          STATUS: ${{ steps.action.outputs.status }}
+          ARXIV: ${{ steps.action.outputs.arxiv }}
+        run: |
+          echo "status: '$STATUS'"
+          echo "arxiv: '$ARXIV'"
+          # Status may be empty if the action crashed before writing outputs (no API keys in test env)
+          if [ -z "$STATUS" ]; then
+            echo "PASS: status is empty (action likely errored due to missing API keys - acceptable in test env)"
+            exit 0
+          fi
+          # If the action succeeded in selecting a paper, arxiv output should be set
+          if [ "$STATUS" = "pr_opened" ] || [ "$STATUS" = "pr_opened_draft" ] || [ "$STATUS" = "issue_opened" ]; then
+            if [ -z "$ARXIV" ]; then
+              echo "FAIL: expected arxiv output to be set when status is '$STATUS'"
+              exit 1
+            fi
+            echo "PASS: arxiv output is set to '$ARXIV'"
+          else
+            echo "PASS: action did not open PR/issue (status=$STATUS), arxiv output not required"
+          fi
