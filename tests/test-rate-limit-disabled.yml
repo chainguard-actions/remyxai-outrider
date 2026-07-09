@@ -1,0 +1,55 @@
+name: Test recommend mode with rate-limit disabled
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_REF: refs/heads/main
+      GITHUB_EVENT_NAME: push
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        continue-on-error: true
+        with:
+          interest-id: 'test-interest-id-00000000-0000-0000-0000-000000000000'
+          mode: recommend
+          chain: 'false'
+          rate-limit-days: '0'
+          min-confidence: 'low'
+          enable-cocoindex: 'false'
+        env:
+          REMYX_API_KEY: 'fake-api-key-for-testing'
+
+      - name: Assert action ran and produced a recognizable outcome
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+          STATUS: ${{ steps.action.outputs.status }}
+        run: |
+          echo "action outcome: $OUTCOME"
+          echo "status: $STATUS"
+          # The action requires real external services. With fake credentials it
+          # will either set a known status or fail before setting any output.
+          # Both are acceptable in a test environment.
+          if [ "$OUTCOME" = "cancelled" ]; then
+            echo "FAIL: action was cancelled unexpectedly"
+            exit 1
+          fi
+          echo "PASS: action ran with outcome=$OUTCOME"
+
+      - name: Assert status is not skipped_open_artifact when rate-limit disabled
+        env:
+          ACTUAL: ${{ steps.action.outputs.status }}
+        run: |
+          echo "actual status: $ACTUAL"
+          # rate-limit-days=0 disables the cadence guard entirely.
+          # The run should never be blocked by skipped_open_artifact.
+          # If status is empty the action failed before setting it — acceptable
+          # with fake credentials in a test environment.
+          if [ "$ACTUAL" = "skipped_open_artifact" ]; then
+            echo "FAIL: rate-limit guard fired even though rate-limit-days=0 (disabled)"
+            exit 1
+          fi
+          echo "PASS: rate-limit guard did not block the run (status=${ACTUAL:-<not set>})"

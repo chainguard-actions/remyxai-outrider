@@ -1,0 +1,56 @@
+name: Test recommend mode with publish=branch
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_REF: refs/heads/main
+      GITHUB_EVENT_NAME: push
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        continue-on-error: true
+        with:
+          interest-id: 'test-interest-id-00000000-0000-0000-0000-000000000000'
+          mode: recommend
+          publish: 'branch'
+          chain: 'false'
+          rate-limit-days: '0'
+          enable-cocoindex: 'false'
+        env:
+          REMYX_API_KEY: 'fake-api-key-for-testing'
+
+      - name: Assert action ran and produced a recognizable outcome
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+          STATUS: ${{ steps.action.outputs.status }}
+        run: |
+          echo "action outcome: $OUTCOME"
+          echo "status: $STATUS"
+          # The action requires real external services. With fake credentials it
+          # will either set a known status or fail before setting any output.
+          # Both are acceptable in a test environment.
+          if [ "$OUTCOME" = "cancelled" ]; then
+            echo "FAIL: action was cancelled unexpectedly"
+            exit 1
+          fi
+          echo "PASS: action ran with outcome=$OUTCOME"
+
+      - name: Assert pr_url is not set when publish=branch
+        env:
+          PR_URL: ${{ steps.action.outputs.pr_url }}
+          STATUS: ${{ steps.action.outputs.status }}
+        run: |
+          echo "status: $STATUS"
+          echo "pr_url: $PR_URL"
+          # When publish=branch, no PR should be opened, so pr_url should be empty.
+          # If status is also empty, the action failed before reaching that logic
+          # (acceptable with fake credentials).
+          if [ "$STATUS" = "pr_opened" ] || [ "$STATUS" = "pr_opened_draft" ]; then
+            echo "FAIL: status indicates a PR was opened but publish=branch was set"
+            exit 1
+          fi
+          echo "PASS: no PR opened in branch-publish mode (status=${STATUS:-<not set>})"

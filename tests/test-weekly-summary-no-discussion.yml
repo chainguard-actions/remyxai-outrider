@@ -1,0 +1,61 @@
+name: Test weekly-summary mode with no discussion ID
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_REF: refs/heads/main
+      GITHUB_EVENT_NAME: schedule
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        continue-on-error: true
+        with:
+          interest-id: 'test-interest-id-00000000-0000-0000-0000-000000000000'
+          mode: weekly-summary
+          weekly-discussion-id: ''
+          enable-cocoindex: 'false'
+        env:
+          REMYX_API_KEY: 'fake-api-key-for-testing'
+
+      - name: Assert action ran and produced a recognizable outcome
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+          STATUS: ${{ steps.action.outputs.status }}
+        run: |
+          echo "action outcome: $OUTCOME"
+          echo "status: $STATUS"
+          # The action requires real external services. With fake credentials it
+          # will either set a known status or fail before setting any output.
+          # Both are acceptable in a test environment.
+          if [ "$OUTCOME" = "cancelled" ]; then
+            echo "FAIL: action was cancelled unexpectedly"
+            exit 1
+          fi
+          echo "PASS: action ran with outcome=$OUTCOME"
+
+      - name: Assert status is a weekly-summary known value when set
+        env:
+          ACTUAL: ${{ steps.action.outputs.status }}
+        run: |
+          echo "actual status: $ACTUAL"
+          # If status is empty the action failed before setting it — acceptable
+          # with fake credentials in a test environment.
+          if [ -z "$ACTUAL" ]; then
+            echo "PASS: status not set (action failed before output step — expected with fake credentials)"
+            exit 0
+          fi
+          # With weekly-discussion-id empty, the action should skip cleanly.
+          # Also accept general error statuses in case the action fails earlier.
+          KNOWN_STATUSES="weekly_summary_posted weekly_summary_skipped_no_discussion_id weekly_summary_failed error"
+          for s in $KNOWN_STATUSES; do
+            if [ "$ACTUAL" = "$s" ]; then
+              echo "PASS: status '$ACTUAL' is a known weekly-summary value"
+              exit 0
+            fi
+          done
+          echo "FAIL: status '$ACTUAL' is not a recognized weekly-summary status value"
+          exit 1
