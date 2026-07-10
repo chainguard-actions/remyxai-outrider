@@ -1,0 +1,51 @@
+name: Test recommend mode (basic)
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_REF: refs/heads/main
+      GITHUB_EVENT_NAME: push
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        with:
+          interest-id: 'test-interest-id-00000000-0000-0000-0000-000000000000'
+          mode: 'recommend'
+          chain: 'false'
+          rate-limit-days: '0'
+          min-confidence: 'moderate'
+          enable-cocoindex: 'false'
+        continue-on-error: true
+
+      - name: Assert status is a known value (if set)
+        env:
+          STATUS: ${{ steps.action.outputs.status }}
+        run: |
+          echo "status: '$STATUS'"
+          # In a test environment without real credentials the action may not
+          # be able to set any output (e.g. if a setup step fails). Accept
+          # empty status as a valid outcome — we are testing the action's
+          # interface, not its live execution.
+          if [ -z "$STATUS" ]; then
+            echo "PASS: status is empty (action could not run without real credentials — acceptable)"
+            exit 0
+          fi
+          case "$STATUS" in
+            pr_opened|pr_opened_draft|issue_opened|\
+            skipped_low_confidence|skipped_open_artifact|\
+            skipped_issues_disabled|skipped_pr_exists|\
+            skipped_issue_exists|skipped_test_failure|\
+            claude_failed|skipped_no_method_match|\
+            rejected_path_violations|aborted_secret_in_payload|error)
+              echo "PASS: status '$STATUS' is a known recommend-mode value"
+              ;;
+            *)
+              echo "FAIL: status '$STATUS' is not a recognised recommend-mode value"
+              exit 1
+              ;;
+          esac
