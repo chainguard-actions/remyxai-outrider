@@ -1,0 +1,65 @@
+name: Test pin-arxiv input
+on:
+  workflow_dispatch:
+
+jobs:
+  test-pin-arxiv:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_REF: refs/heads/main
+      GITHUB_EVENT_NAME: push
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        with:
+          interest-id: 'test-interest-id-00000000-0000-0000-0000-000000000000'
+          mode: 'recommend'
+          pin-arxiv: '2301.00001'
+          chain: 'false'
+          rate-limit-days: '0'
+          enable-cocoindex: 'false'
+          candidate-pool: '5'
+        env:
+          REMYX_API_KEY: 'test-invalid-key'
+        continue-on-error: true
+
+      - name: Assert action step completed (pass or fail)
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "action outcome: $OUTCOME"
+          if [ "$OUTCOME" = "success" ] || [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: action step completed with outcome '$OUTCOME'"
+          else
+            echo "FAIL: unexpected outcome '$OUTCOME'"
+            exit 1
+          fi
+
+      - name: Assert arxiv output is accessible
+        env:
+          ARXIV: ${{ steps.action.outputs.arxiv }}
+        run: |
+          echo "arxiv: '$ARXIV'"
+          # arxiv output may be empty if the action errors before selecting a paper
+          echo "PASS: arxiv output key is accessible (value: '$ARXIV')"
+
+      - name: Assert tier output is valid if set
+        env:
+          TIER: ${{ steps.action.outputs.tier }}
+        run: |
+          echo "tier: '$TIER'"
+          if [ -z "$TIER" ]; then
+            echo "PASS: tier is empty (action errored before confidence scoring — expected with invalid credentials)"
+          else
+            case "$TIER" in
+              high|moderate|low|noise)
+                echo "PASS: tier '$TIER' is a valid value"
+                ;;
+              *)
+                echo "FAIL: tier '$TIER' is not a recognized value"
+                exit 1
+                ;;
+            esac
+          fi

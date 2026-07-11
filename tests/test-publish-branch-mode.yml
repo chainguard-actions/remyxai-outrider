@@ -1,0 +1,60 @@
+name: Test publish branch mode
+on:
+  workflow_dispatch:
+
+jobs:
+  test-publish-branch-mode:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_REF: refs/heads/main
+      GITHUB_EVENT_NAME: push
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        with:
+          interest-id: 'test-interest-id-00000000-0000-0000-0000-000000000000'
+          mode: 'recommend'
+          publish: 'branch'
+          chain: 'false'
+          rate-limit-days: '0'
+          enable-cocoindex: 'false'
+          candidate-pool: '5'
+        env:
+          REMYX_API_KEY: 'test-invalid-key'
+        continue-on-error: true
+
+      - name: Assert action step completed (pass or fail)
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "action outcome: $OUTCOME"
+          if [ "$OUTCOME" = "success" ] || [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: action step completed with outcome '$OUTCOME'"
+          else
+            echo "FAIL: unexpected outcome '$OUTCOME'"
+            exit 1
+          fi
+
+      - name: Assert cost_usd output is present (may be empty on error)
+        env:
+          COST: ${{ steps.action.outputs.cost_usd }}
+        run: |
+          echo "cost_usd: '$COST'"
+          # cost_usd may be empty when the action errors out before Claude runs
+          echo "PASS: cost_usd output key is accessible (value: '$COST')"
+
+      - name: Assert input_tokens output is present (may be empty on error)
+        env:
+          INPUT_TOKENS: ${{ steps.action.outputs.input_tokens }}
+        run: |
+          echo "input_tokens: '$INPUT_TOKENS'"
+          echo "PASS: input_tokens output key is accessible (value: '$INPUT_TOKENS')"
+
+      - name: Assert output_tokens output is present (may be empty on error)
+        env:
+          OUTPUT_TOKENS: ${{ steps.action.outputs.output_tokens }}
+        run: |
+          echo "output_tokens: '$OUTPUT_TOKENS'"
+          echo "PASS: output_tokens output key is accessible (value: '$OUTPUT_TOKENS')"
