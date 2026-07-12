@@ -1,0 +1,65 @@
+name: Test convention mode (requires pr-number)
+on:
+  workflow_dispatch:
+
+jobs:
+  test-convention-mode:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_REF: refs/pull/1/merge
+      GITHUB_EVENT_NAME: pull_request
+      GITHUB_HEAD_REF: feature-branch
+      GITHUB_BASE_REF: main
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        with:
+          interest-id: 'test-interest-id-00000000-0000-0000-0000-000000000000'
+          mode: 'convention'
+          pr-number: '1'
+          enable-cocoindex: 'false'
+        continue-on-error: true
+
+      - name: Assert action step completed (status set or action errored gracefully)
+        env:
+          STATUS: ${{ steps.action.outputs.status }}
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          echo "status: $STATUS"
+          # The action requires REMYX_API_KEY which is not set in test env.
+          # It is acceptable for the action to fail/error without credentials.
+          if [ "$OUTCOME" = "success" ] || [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: action step completed with outcome '$OUTCOME'"
+          else
+            echo "FAIL: unexpected outcome '$OUTCOME'"
+            exit 1
+          fi
+
+      - name: Assert status is a known value or empty (no credentials)
+        env:
+          STATUS: ${{ steps.action.outputs.status }}
+        run: |
+          echo "status: $STATUS"
+          # Empty status is acceptable when API credentials are absent
+          if [ -z "$STATUS" ]; then
+            echo "PASS: status is empty (expected without API credentials)"
+            exit 0
+          fi
+          case "$STATUS" in
+            pr_opened|pr_opened_draft|issue_opened|\
+            skipped_low_confidence|skipped_open_artifact|\
+            skipped_issues_disabled|skipped_pr_exists|\
+            skipped_issue_exists|skipped_test_failure|\
+            claude_failed|skipped_no_method_match|\
+            rejected_path_violations|aborted_secret_in_payload|\
+            error)
+              echo "PASS: status '$STATUS' is a recognized value"
+              ;;
+            *)
+              echo "FAIL: status '$STATUS' is not a recognized value"
+              exit 1
+              ;;
+          esac

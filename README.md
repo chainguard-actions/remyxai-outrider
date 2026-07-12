@@ -1,28 +1,144 @@
-# remyxai/outrider
+# Outrider — GitHub Action
 
-Scouts arXiv for the next paper most implementable against your codebase and drafts a PR or opens an issue.
+Validating and comparing new methods against your own codebase is 10× the work of any single implementation. Schedule Outrider (or dispatch on demand) as a GitHub Action to wire arXiv methods (or your own design-doc leads) into real call sites, so your team can measure the change against the metrics you already track.
 
-Hardened by [Chainguard](https://www.chainguard.dev) from the upstream action at [https://github.com/remyxai/outrider](https://github.com/remyxai/outrider).
+```yaml
+- uses: remyxai/outrider@v1
+  with:
+    interest-id: ${{ vars.REMYX_INTEREST_ID }}
+```
 
-## Versions
+Each dispatch runs the coding agent in a fresh, ephemeral runner — candidates don't share state, testing variance stays low, and you can dispatch dozens per week without context pollution. Backends are pluggable: Anthropic Opus for the shipping commit, z.ai's GLM-5.2 at ~20× lower cost for scouting and branch-mode exploration.
 
-| Version | Tag | Upstream commit |
-|---------|-----|-----------------|
-| v1.5.2 | [`v1.5.2`](https://github.com/chainguard-actions/remyxai-outrider/tree/v1.5.2) | [`79b0b5c`](https://github.com/remyxai/outrider/commit/79b0b5cd3fdd2050f01c4f67b2aeaf89858e0d12) |
-| v1.5.3 | [`v1.5.3`](https://github.com/chainguard-actions/remyxai-outrider/tree/v1.5.3) | [`6f6bcc6`](https://github.com/remyxai/outrider/commit/6f6bcc630253e3f6ae4569af2d45396abc7be05e) |
-| v1.5.4 | [`v1.5.4`](https://github.com/chainguard-actions/remyxai-outrider/tree/v1.5.4) | [`3fc6ce0`](https://github.com/remyxai/outrider/commit/3fc6ce050688529ffb66582b191d6cf5f774b421) |
-| v1.5.5 | [`v1.5.5`](https://github.com/chainguard-actions/remyxai-outrider/tree/v1.5.5) | [`37936f6`](https://github.com/remyxai/outrider/commit/37936f6b2a8fb973934f28e169aeeb3c0fef069d) |
-| v1.6.0 | [`v1.6.0`](https://github.com/chainguard-actions/remyxai-outrider/tree/v1.6.0) | [`796bbc8`](https://github.com/remyxai/outrider/commit/796bbc87763af23471042bd7474d510df02fe22e) |
-| v1.6.10 | [`v1.6.10`](https://github.com/chainguard-actions/remyxai-outrider/tree/v1.6.10) | [`282649b`](https://github.com/remyxai/outrider/commit/282649b20517f150fb56f73210f2053de6f69878) |
-| v1.6.11 | [`v1.6.11`](https://github.com/chainguard-actions/remyxai-outrider/tree/v1.6.11) | [`793b757`](https://github.com/remyxai/outrider/commit/793b757ee72a87a35835349b2c540a90a42ef939) |
-| v1.6.3 | [`v1.6.3`](https://github.com/chainguard-actions/remyxai-outrider/tree/v1.6.3) | [`dfd755f`](https://github.com/remyxai/outrider/commit/dfd755f87266f8e155e246b5232ec53569b14cc4) |
-| v1.6.5 | [`v1.6.5`](https://github.com/chainguard-actions/remyxai-outrider/tree/v1.6.5) | [`bd23847`](https://github.com/remyxai/outrider/commit/bd238471139228254a7034de66d03f486071b4ab) |
-| v1.6.8 | [`v1.6.8`](https://github.com/chainguard-actions/remyxai-outrider/tree/v1.6.8) | [`ce233a8`](https://github.com/remyxai/outrider/commit/ce233a8d1ec9d199cf2887def79de5c68902eea9) |
-| v1.7.10 | [`v1.7.10`](https://github.com/chainguard-actions/remyxai-outrider/tree/v1.7.10) | [`4d479af`](https://github.com/remyxai/outrider/commit/4d479afcad1c51e687172fc24b0cc737f07ab0da) |
-| v1.7.11 | [`v1.7.11`](https://github.com/chainguard-actions/remyxai-outrider/tree/v1.7.11) | [`e6a6865`](https://github.com/remyxai/outrider/commit/e6a68653474e5e14e8df22c65e61b7597be62dd2) |
-| v1.7.13 | [`v1.7.13`](https://github.com/chainguard-actions/remyxai-outrider/tree/v1.7.13) | [`2efe295`](https://github.com/remyxai/outrider/commit/2efe295accf42280848ea55204808f6b3f0cf936) |
-| v1.7.14 | [`v1.7.14`](https://github.com/chainguard-actions/remyxai-outrider/tree/v1.7.14) | [`0835f0c`](https://github.com/remyxai/outrider/commit/0835f0c86c7468ed858047c23e8927fdd1c97abd) |
-| v1.7.15 | [`v1.7.15`](https://github.com/chainguard-actions/remyxai-outrider/tree/v1.7.15) | [`76c392b`](https://github.com/remyxai/outrider/commit/76c392bd13b2eeae17e875d61524c99043c75c9a) |
+
+## What you get
+
+- **Draft PRs** wired to an existing call site, with a self-review noting what was implemented vs. left out
+- **Issues** when preflight, validators, or self-review route the paper to discussion instead
+- **Branch-only mode** (`publish: branch`) — pushes to the fork without opening a PR or Issue; explore N candidates before committing to any one
+- **No duplicate work** — a paper isn't re-recommended once Outrider or a maintainer Issue references it
+- **A selection narrative** in the step summary — why this paper, or why nothing this run
+
+
+## Model backends
+
+| Backend | Cost / full run | Best for |
+|---|---|---|
+| Anthropic Opus (default) | ~$2–3 | The commit — one candidate shipped as a draft PR |
+| z.ai GLM-5.2 | ~$0.05–0.10 | Scouting, branch-mode exploration, batched candidate scans |
+
+Route per-dispatch via a `provider` input — see [`docs/backends.md`](docs/backends.md) for the auth-header matrix and the switching workflow template. Rule of thumb: GLM for the exploration ladder, Opus for the candidate you commit to ship.
+
+
+## Quickstart
+
+```bash
+pip install remyxai
+remyxai outrider init --repo owner/name --auto-interest
+```
+
+Installs the action, writes the workflow, sets the secrets (`REMYX_API_KEY`, `ANTHROPIC_API_KEY`). Scheduled cron handles the weekly cadence from there.
+
+Trigger an ad-hoc run:
+
+```bash
+remyxai outrider trigger --repo owner/name --pin-arxiv 2410.20305v2
+remyxai outrider trigger --repo owner/name --pin-method "riemannian preconditioning LoRA optimizer"
+```
+
+`--pin-arxiv` implements the exact paper; `--pin-method` searches for the top hit. See [`remyxai-cli`](https://github.com/remyxai/remyxai-cli) for bulk-install and per-dispatch routing.
+
+<details>
+<summary><b>Manual install (5 minutes)</b></summary>
+
+1. **Sign up at [engine.remyx.ai](https://engine.remyx.ai)** and connect your repo. Remyx ingests your commit history and creates a `ResearchInterest`. Edit its context body to sharpen the framing.
+
+2. **Generate a `REMYX_API_KEY`** from the engine.remyx.ai Settings page.
+
+3. **Add two secrets** in your repo's *Settings → Secrets and variables → Actions*:
+   - `REMYX_API_KEY` — from step 2
+   - `ANTHROPIC_API_KEY` — your key from [console.anthropic.com](https://console.anthropic.com)
+
+4. **Allow Actions to open PRs**: *Settings → Actions → General → Workflow permissions* → ☑ *Allow GitHub Actions to create and approve pull requests*. (Without this, the action returns `HTTP 403` at PR creation.)
+
+5. **Add the workflow** at `.github/workflows/outrider.yml`:
+
+   ```yaml
+   name: Outrider
+   on:
+     schedule:
+       - cron: '0 14 * * 1'   # Mondays 14:00 UTC; pick any cadence
+     workflow_dispatch:
+       inputs:
+         pin-arxiv:
+           description: 'Optional arxiv_id to implement directly (bypasses selection).'
+           required: false
+           default: ''
+         search-method:
+           description: 'Optional method query — searches for the top-hit paper and implements it.'
+           required: false
+           default: ''
+         publish:
+           description: 'pr (default) or branch — branch mode pushes to the fork without opening PR/Issue.'
+           required: false
+           default: 'pr'
+         claude-timeout:
+           description: 'Wall-clock seconds for the Claude Code agent (preflight + implementation).'
+           required: false
+           default: '900'
+   jobs:
+     recommend:
+       runs-on: ubuntu-latest
+       permissions:
+         contents: write
+         pull-requests: write
+         issues: write
+       env:
+         REMYX_API_KEY: ${{ secrets.REMYX_API_KEY }}
+         ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+       steps:
+         - uses: remyxai/outrider@v1
+           with:
+             interest-id: 'YOUR-INTEREST-UUID-HERE'
+             pin-arxiv: ${{ inputs.pin-arxiv }}
+             search-method: ${{ inputs.search-method }}
+             publish: ${{ inputs.publish }}
+             claude-timeout: ${{ inputs.claude-timeout }}
+   ```
+
+   For multi-provider routing (route this dispatch at z.ai's GLM endpoint vs Anthropic per run), see [`docs/backends.md`](docs/backends.md) — adds a `provider` input, a `ZAI_API_KEY` secret, and a `Configure provider auth` step. `outrider setup-local` (v0.4.3+) generates that shape by default; the workflow above is the Anthropic-only minimal path.
+
+6. **First run**: *Actions tab → Outrider → Run workflow*. Takes 2–4 min on GLM, 4–6 min on Anthropic Opus. A draft PR, Issue, or branch appears when complete.
+
+</details>
+
+
+## Examples
+
+Each PR below shows the **match** (what in the paper mapped to what in the repo) and the **shape** (how the wiring landed):
+
+- **[peft #5](https://github.com/smellslikeml/peft/pull/5)** — Riemannian preconditioner for LoRA ([arXiv:2402.02347v3](https://arxiv.org/abs/2402.02347v3)). *Match:* the MetaMathQA benchmark already has a config-keyed optimizer dispatch. *Shape:* new `create_riemannian_optimizer`, +7/-2 wiring edit. _Human shepherded to [huggingface/peft #3382](https://github.com/huggingface/peft/pull/3382), coordinated via [issue #3380](https://github.com/huggingface/peft/issues/3380)._
+- **[peft #8](https://github.com/smellslikeml/peft/pull/8)** — Scaling DoRA factored weight-norm ([arXiv:2603.22276v1](https://arxiv.org/abs/2603.22276v1)). *Match:* `DoraLinearLayer.forward` already exposes the `ENABLE_DORA_CACHING` opt-in-flag convention; a factored-norm path slots in behind a sibling `USE_FACTORED_DORA_NORM` flag, no dense `B @ A` product materialized. *Shape:* new `factored_weight_norm.py`, ~110 LOC diff, 5 tests parametrized over scaling values plus an end-to-end `LoraConfig(use_dora=True)` check; numerically equivalent to the dense path. Coordinated via [sockeye44/dorafactors #1](https://github.com/sockeye44/dorafactors/issues/1) where the PEFT maintainer explicitly invited the algorithmic path.
+- **[OLMo-core #13](https://github.com/smellslikeml/OLMo-core/pull/13)** — Mechanism-driven preemptive instability monitor ([arXiv:2606.28116](https://arxiv.org/abs/2606.28116)). *Match:* `train/callbacks/` already has the reactive `StabilityMonitorCallback` shape; the preemptive variant registers alongside as a forward-hook + `record_metric` peer that fires thousands of steps before the loss diverges. *Shape:* `MechanismMonitorCallback` with QK spectral entropy + MoE routing entropy signals gated by a parameter-free rolling-window one-sided z-score detector; 12 tests covering GQA, layer/token sub-sampling, hook lifecycle, and state-dict window truncation. Two-pass workflow: a GLM-tier branch-mode scout produced the baseline callback, then an Anthropic-tier `start-from-ref` refinement added the `@beta_feature` decorator + CHANGELOG entry per OLMo-core's contribution conventions.
+- **[OpenRLHF #14](https://github.com/smellslikeml/OpenRLHF/pull/14)** — MRPO step-level reward penalty ([arXiv:2606.31825v1](https://arxiv.org/abs/2606.31825v1)). *Match:* PPO advantages already carry per-step weighting; MRPO's decay factor slots in as a second multiplier. *Shape:* new hook wired into `RemoteExperienceMaker.compute_advantages_and_returns`, opt-in flag, default-off byte-identical. PR body names the sibling papers in the same PPO cluster as follow-ups.
+- **[ag2 #9](https://github.com/smellslikeml/ag2/pull/9)** — Adaptive Context Elasticizer ([arXiv:2606.31564v1](https://arxiv.org/abs/2606.31564v1)). *Match:* `MiddlewareFactory` already extends the LLM-call pipeline; a new elastic middleware sits alongside `HistoryLimiter` / `TokenLimiter`. *Shape:* per-instance abstraction cache for reversibility, deterministic extractive digest keeps the middleware dependency-free.
+- **[lerobot #9](https://github.com/smellslikeml/lerobot/pull/9)** — Dense Embodied Chain-of-Thought supervision ([arXiv:2606.30552v1](https://arxiv.org/abs/2606.30552v1)). *Match:* the annotator has staged language modules (plan / vqa); ECoT slots in as another stage with the same I/O contract. *Shape:* new `EcotReasoningModule`, wired into the executor as phase 4.5.
+
+
+## Documentation
+
+- **[Configuration reference](docs/configuration.md)** — full inputs, outputs, status codes
+- **[Customization](docs/customization.md)** — tailor Outrider to your repo + signals it reads
+- **[Architecture](docs/architecture.md)** — selection taxonomy, pipeline, refinement chain
+- **[Guardrails](docs/guardrails.md)** — what the agent can and can't modify
+- **[Model backends](docs/backends.md)** — full backend/auth matrix + per-dispatch switching template
+- **[Environments](docs/environments.md)** — describe workflow-attached tooling via `ENVIRONMENTS.md`
+- **[Weekly summary mode](docs/weekly-summary.md)** — opt-in rolling digest comments
+
+
+## License
+
+Apache 2.0. See [LICENSE](./LICENSE).
 
 ## Privacy
 
