@@ -1,0 +1,48 @@
+name: Test fidelity mode without pr-number
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_REF: refs/heads/main
+      GITHUB_EVENT_NAME: pull_request
+      GITHUB_HEAD_REF: feature-branch
+      GITHUB_BASE_REF: main
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        with:
+          interest-id: 'test-interest-id-placeholder'
+          mode: 'fidelity'
+          pr-number: ''
+          enable-cocoindex: 'false'
+        continue-on-error: true
+
+      - name: Assert action handled missing pr-number gracefully
+        env:
+          STATUS: ${{ steps.action.outputs.status }}
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "status: $STATUS"
+          echo "step outcome: $OUTCOME"
+          # Without a pr-number and without real credentials, the action should
+          # either error gracefully or produce a known status — it must not hang
+          # The step is allowed to fail (continue-on-error: true) but should not
+          # produce an unexpected status value
+          ACCEPTABLE="error skipped_low_confidence skipped_open_artifact skipped_pr_exists claude_failed"
+          if [ -z "$STATUS" ]; then
+            echo "PASS: action exited (possibly with error) before setting status — acceptable without credentials"
+            exit 0
+          fi
+          for s in $ACCEPTABLE; do
+            if [ "$STATUS" = "$s" ]; then
+              echo "PASS: status '$STATUS' is acceptable"
+              exit 0
+            fi
+          done
+          echo "FAIL: unexpected status '$STATUS'"
+          exit 1

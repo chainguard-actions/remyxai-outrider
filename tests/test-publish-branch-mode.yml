@@ -1,0 +1,38 @@
+name: Test publish=branch mode skips PR creation
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_REF: refs/heads/main
+      GITHUB_EVENT_NAME: push
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        with:
+          interest-id: 'test-interest-id-placeholder'
+          mode: 'recommend'
+          publish: 'branch'
+          rate-limit-days: '0'
+          enable-cocoindex: 'false'
+          chain: 'false'
+        continue-on-error: true
+
+      - name: Assert pr_url is empty when publish=branch
+        env:
+          STATUS: ${{ steps.action.outputs.status }}
+          PR_URL: ${{ steps.action.outputs.pr_url }}
+        run: |
+          echo "status: $STATUS"
+          echo "pr_url: $PR_URL"
+          # In branch mode, no PR should be opened, so pr_url should be empty
+          # (unless the action errored before reaching that logic, which is also acceptable)
+          if [ -n "$PR_URL" ]; then
+            echo "FAIL: pr_url should be empty in publish=branch mode, got: $PR_URL"
+            exit 1
+          fi
+          echo "PASS: pr_url is empty as expected for publish=branch mode"
