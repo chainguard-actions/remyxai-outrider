@@ -1,0 +1,44 @@
+name: Test weekly-summary mode
+on:
+  workflow_dispatch:
+
+jobs:
+  test-weekly-summary-mode:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_REF: refs/heads/main
+      GITHUB_EVENT_NAME: schedule
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        with:
+          interest-id: 'test-interest-id-00000000-0000-0000-0000-000000000000'
+          mode: 'weekly-summary'
+          weekly-discussion-id: ''
+          enable-cocoindex: 'false'
+        # weekly-summary with no discussion ID should skip cleanly
+        continue-on-error: true
+
+      - name: Assert weekly-summary does not open PRs or Issues
+        env:
+          STATUS: ${{ steps.action.outputs.status }}
+          DISCUSSION_URL: ${{ steps.action.outputs.discussion_comment_url }}
+        run: |
+          echo "status: $STATUS"
+          echo "discussion_comment_url: $DISCUSSION_URL"
+          # When weekly-discussion-id is empty, the action should skip cleanly
+          # or return an error status (not a PR/issue opened status)
+          case "$STATUS" in
+            pr_opened|pr_opened_draft|issue_opened|weekly_summary_posted)
+              echo "FAIL: unexpected success status '$STATUS' when no discussion id provided"
+              exit 1
+              ;;
+            weekly_summary_skipped_no_discussion_id|weekly_summary_failed|error|"")
+              echo "PASS: status '$STATUS' is expected for weekly-summary with no discussion id"
+              ;;
+            *)
+              echo "INFO: status '$STATUS' - acceptable fallback"
+              ;;
+          esac

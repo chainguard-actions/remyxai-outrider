@@ -1,0 +1,70 @@
+name: Test high confidence tier gate
+on:
+  workflow_dispatch:
+
+jobs:
+  test-high-confidence-gate:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_REF: refs/heads/main
+      GITHUB_EVENT_NAME: push
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        with:
+          interest-id: 'test-interest-id-00000000-0000-0000-0000-000000000000'
+          mode: 'recommend'
+          chain: 'false'
+          min-confidence: 'high'
+          rate-limit-days: '0'
+          lookback: 'week'
+          candidate-pool: '5'
+          enable-cocoindex: 'false'
+        # The action will fail at the API call stage due to missing REMYX_API_KEY
+        continue-on-error: true
+
+      - name: Assert action ran and outputs are accessible
+        env:
+          STATUS: ${{ steps.action.outputs.status }}
+          TIER: ${{ steps.action.outputs.tier }}
+        run: |
+          echo "status: $STATUS"
+          echo "tier: $TIER"
+          # If tier is set, verify it is a known value
+          if [ -n "$TIER" ]; then
+            case "$TIER" in
+              high|moderate|low|noise)
+                echo "PASS: tier '$TIER' is a known value"
+                ;;
+              *)
+                echo "FAIL: tier '$TIER' is not a recognized value"
+                exit 1
+                ;;
+            esac
+          else
+            echo "PASS: tier is empty (expected when API key missing)"
+          fi
+          # If status is set, verify it is a known value
+          if [ -n "$STATUS" ]; then
+            case "$STATUS" in
+              pr_opened|pr_opened_draft|issue_opened|\
+              skipped_low_confidence|skipped_open_artifact|\
+              skipped_issues_disabled|skipped_pr_exists|\
+              skipped_issue_exists|skipped_test_failure|\
+              claude_failed|skipped_no_method_match|\
+              rejected_path_violations|aborted_secret_in_payload|\
+              error|weekly_summary_posted|\
+              weekly_summary_skipped_no_discussion_id|\
+              weekly_summary_failed)
+                echo "PASS: status '$STATUS' is a known value"
+                ;;
+              *)
+                echo "FAIL: status '$STATUS' is not a recognized value"
+                exit 1
+                ;;
+            esac
+          else
+            echo "PASS: status is empty (expected when API key missing)"
+          fi

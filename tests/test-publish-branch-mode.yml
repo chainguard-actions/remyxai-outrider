@@ -1,0 +1,42 @@
+name: Test publish branch mode
+on:
+  workflow_dispatch:
+
+jobs:
+  test-publish-branch-mode:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_REF: refs/heads/main
+      GITHUB_EVENT_NAME: push
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        with:
+          interest-id: 'test-interest-id-00000000-0000-0000-0000-000000000000'
+          mode: 'recommend'
+          publish: 'branch'
+          chain: 'false'
+          rate-limit-days: '0'
+          min-confidence: 'low'
+          lookback: 'today'
+          candidate-pool: '5'
+          enable-cocoindex: 'false'
+        # The action will fail at the API call stage due to missing REMYX_API_KEY
+        continue-on-error: true
+
+      - name: Assert action ran and pr_url is not set in branch mode
+        env:
+          STATUS: ${{ steps.action.outputs.status }}
+          PR_URL: ${{ steps.action.outputs.pr_url }}
+        run: |
+          echo "status: $STATUS"
+          echo "pr_url: $PR_URL"
+          # When publish=branch, no PR should be opened, so pr_url should be empty
+          # (unless the action errored before reaching that point)
+          if [ "$STATUS" = "pr_opened" ] || [ "$STATUS" = "pr_opened_draft" ]; then
+            echo "FAIL: action opened a PR when publish=branch was set"
+            exit 1
+          fi
+          echo "PASS: no PR opened in branch publish mode (status: '$STATUS')"

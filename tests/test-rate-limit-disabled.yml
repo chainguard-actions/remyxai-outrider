@@ -1,0 +1,39 @@
+name: Test rate-limit disabled (rate-limit-days=0)
+on:
+  workflow_dispatch:
+
+jobs:
+  test-rate-limit-disabled:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_REF: refs/heads/main
+      GITHUB_EVENT_NAME: push
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        with:
+          interest-id: 'test-interest-id-00000000-0000-0000-0000-000000000000'
+          mode: 'recommend'
+          chain: 'false'
+          rate-limit-days: '0'
+          min-confidence: 'moderate'
+          lookback: 'week'
+          candidate-pool: '5'
+          enable-cocoindex: 'false'
+        # The action will fail at the API call stage due to missing REMYX_API_KEY
+        continue-on-error: true
+
+      - name: Assert rate limit guard is disabled (no skipped_open_artifact)
+        env:
+          STATUS: ${{ steps.action.outputs.status }}
+        run: |
+          echo "status: $STATUS"
+          # With rate-limit-days=0, the cadence guard is disabled,
+          # so the action should NOT skip due to open artifacts
+          if [ "$STATUS" = "skipped_open_artifact" ]; then
+            echo "FAIL: action skipped due to open artifact even though rate-limit-days=0"
+            exit 1
+          fi
+          echo "PASS: status '$STATUS' - rate limit guard correctly disabled (or action failed before reaching guard)"
