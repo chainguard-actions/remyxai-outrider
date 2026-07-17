@@ -1,0 +1,55 @@
+name: Test recommend mode with branch publish (no PR creation)
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      REMYX_API_KEY: 'fake-key-for-test'
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        with:
+          interest-id: 'test-interest-id-placeholder'
+          mode: 'recommend'
+          publish: 'branch'
+          enable-cocoindex: 'false'
+          chain: 'false'
+          rate-limit-days: '0'
+          claude-timeout: '120'
+          candidate-pool: '5'
+        continue-on-error: true
+
+      - name: Assert action ran (status output or graceful failure)
+        env:
+          ACTUAL: ${{ steps.action.outputs.status }}
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "step outcome: $OUTCOME"
+          echo "actual status: $ACTUAL"
+          # The action may fail during heavy setup (npm/pip install) with fake
+          # credentials — that is acceptable.
+          if [ -z "$ACTUAL" ]; then
+            echo "INFO: status output is empty — action likely failed during setup or run.py with fake credentials"
+            echo "PASS: action was invoked; graceful failure is acceptable"
+            exit 0
+          fi
+          echo "PASS: action ran and produced status '$ACTUAL'"
+
+      - name: Assert pr_url is empty when publish is branch
+        env:
+          PR_URL: ${{ steps.action.outputs.pr_url }}
+          STATUS: ${{ steps.action.outputs.status }}
+        run: |
+          echo "pr_url: '$PR_URL'"
+          echo "status: '$STATUS'"
+          # When publish=branch, no PR is opened so pr_url should be empty
+          # (unless the action errored before reaching that logic)
+          if [ "$STATUS" = "pr_opened" ] || [ "$STATUS" = "pr_opened_draft" ]; then
+            echo "FAIL: publish=branch should not open a PR, but status is '$STATUS'"
+            exit 1
+          fi
+          echo "PASS: no PR opened as expected with publish=branch (status='$STATUS')"

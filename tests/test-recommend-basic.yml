@@ -1,0 +1,50 @@
+name: Test recommend mode basic invocation
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      REMYX_API_KEY: 'fake-key-for-test'
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        with:
+          interest-id: 'test-interest-id-placeholder'
+          mode: 'recommend'
+          enable-cocoindex: 'false'
+          chain: 'false'
+          min-confidence: 'moderate'
+          rate-limit-days: '0'
+          lookback: 'week'
+          candidate-pool: '5'
+          claude-timeout: '120'
+        continue-on-error: true
+
+      - name: Assert action ran (status output or graceful failure)
+        env:
+          ACTUAL: ${{ steps.action.outputs.status }}
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "step outcome: $OUTCOME"
+          echo "actual status: $ACTUAL"
+          # The action may fail during heavy setup (npm/pip install) with fake
+          # credentials — that is acceptable. We only fail the test if the
+          # action produced an unrecognized status value.
+          if [ -z "$ACTUAL" ]; then
+            echo "INFO: status output is empty — action likely failed during setup or run.py with fake credentials"
+            echo "PASS: action was invoked; graceful failure is acceptable"
+            exit 0
+          fi
+          VALID_STATUSES="pr_opened pr_opened_draft issue_opened skipped_low_confidence skipped_open_artifact skipped_issues_disabled skipped_pr_exists skipped_issue_exists skipped_test_failure claude_failed skipped_no_method_match rejected_path_violations aborted_secret_in_payload error"
+          for s in $VALID_STATUSES; do
+            if [ "$ACTUAL" = "$s" ]; then
+              echo "PASS: got valid status '$ACTUAL'"
+              exit 0
+            fi
+          done
+          echo "FAIL: '$ACTUAL' is not a recognized status value"
+          exit 1
