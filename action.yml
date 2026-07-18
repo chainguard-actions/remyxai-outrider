@@ -440,7 +440,6 @@ runs:
       id: recommend
       shell: bash
       env:
-        ACTION_PATH: ${{ github.action_path }}
         # GITHUB_TOKEN: always set from the workflow's built-in token,
         # which works for same-repo installs. Cross-repo controllers
         # override via INPUT_GITHUB_TOKEN below; run.py prefers that
@@ -482,5 +481,6 @@ runs:
         # week / 10 in run.py too, so omitting them is safe.
         REMYX_RECOMMENDATION_PERIOD: ${{ inputs.lookback }}
         REMYX_RECOMMENDATION_LIMIT: ${{ inputs.candidate-pool }}
+        ACTION_PATH: ${{ github.action_path }}
       run: |
         python "$ACTION_PATH/src/run.py"

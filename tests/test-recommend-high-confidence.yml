@@ -1,4 +1,4 @@
-name: Test recommend mode (basic)
+name: Test recommend mode with high confidence gate
 on:
   workflow_dispatch:
 jobs:
@@ -13,11 +13,14 @@ jobs:
           interest-id: 'test-interest-id-00000000-0000-0000-0000-000000000000'
           mode: 'recommend'
           chain: 'false'
-          min-confidence: 'moderate'
+          min-confidence: 'high'
           rate-limit-days: '0'
-          lookback: 'week'
+          lookback: 'today'
           candidate-pool: '5'
           enable-cocoindex: 'false'
+          draft-mode: 'always'
+          test-integration-policy: 'strict'
+          publish: 'pr'
         env:
           REMYX_API_KEY: 'test-invalid-key'
           ANTHROPIC_API_KEY: 'test-invalid-key'

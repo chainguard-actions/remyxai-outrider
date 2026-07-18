@@ -53,12 +53,14 @@ jobs:
           PROVIDER_INPUT: ${{ inputs.provider }}
         run: |
           if [ "$PROVIDER_INPUT" = "zai" ]; then
-            echo "ANTHROPIC_AUTH_TOKEN=$ZAI_API_KEY_SECRET" >> "$GITHUB_ENV"
+            safe_zai=$(printf '%s' "$ZAI_API_KEY_SECRET" | tr -d '\n\r')
+            echo "ANTHROPIC_AUTH_TOKEN=$safe_zai" >> "$GITHUB_ENV"
           else
-            echo "ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY_SECRET" >> "$GITHUB_ENV"
+            safe_anthropic=$(printf '%s' "$ANTHROPIC_API_KEY_SECRET" | tr -d '\n\r')
+            echo "ANTHROPIC_API_KEY=$safe_anthropic" >> "$GITHUB_ENV"
           fi
           if [ -n "$MODEL_INPUT" ]; then
-            safe_model="$(printf '%s' "$MODEL_INPUT" | tr -d '\n\r')"
+            safe_model=$(printf '%s' "$MODEL_INPUT" | tr -d '\n\r')
             echo "ANTHROPIC_MODEL=$safe_model" >> "$GITHUB_ENV"
           fi
       - name: Mint Remyx bot token

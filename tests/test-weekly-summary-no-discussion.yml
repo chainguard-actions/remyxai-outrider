@@ -1,4 +1,4 @@
-name: Test recommend mode (basic)
+name: Test weekly-summary mode with no discussion ID
 on:
   workflow_dispatch:
 jobs:
@@ -11,12 +11,8 @@ jobs:
         uses: .
         with:
           interest-id: 'test-interest-id-00000000-0000-0000-0000-000000000000'
-          mode: 'recommend'
-          chain: 'false'
-          min-confidence: 'moderate'
-          rate-limit-days: '0'
-          lookback: 'week'
-          candidate-pool: '5'
+          mode: 'weekly-summary'
+          weekly-discussion-id: ''
           enable-cocoindex: 'false'
         env:
           REMYX_API_KEY: 'test-invalid-key'
@@ -44,7 +40,7 @@ jobs:
           fi
           echo "PASS: status is set to '$STATUS'"
 
-      - name: Assert status is a known value (when set)
+      - name: Assert status indicates skipped or known outcome (when set)
         env:
           STATUS: ${{ steps.action.outputs.status }}
           OUTCOME: ${{ steps.action.outcome }}
@@ -57,17 +53,14 @@ jobs:
             exit 0
           fi
           case "$STATUS" in
-            pr_opened|pr_opened_draft|issue_opened|\
-            skipped_low_confidence|skipped_open_artifact|\
-            skipped_issues_disabled|skipped_pr_exists|\
-            skipped_issue_exists|skipped_test_failure|\
-            claude_failed|skipped_no_method_match|\
-            rejected_path_violations|aborted_secret_in_payload|\
+            weekly_summary_posted|\
+            weekly_summary_skipped_no_discussion_id|\
+            weekly_summary_failed|\
             error)
-              echo "PASS: status '$STATUS' is a known value"
+              echo "PASS: status '$STATUS' is a known weekly-summary value"
               ;;
             *)
-              echo "FAIL: status '$STATUS' is not a recognized value"
+              echo "FAIL: unexpected status '$STATUS' for weekly-summary mode"
               exit 1
               ;;
           esac

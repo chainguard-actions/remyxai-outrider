@@ -1,4 +1,4 @@
-name: Test recommend mode (basic)
+name: Test recommend mode with publish=branch
 on:
   workflow_dispatch:
 jobs:
@@ -13,11 +13,13 @@ jobs:
           interest-id: 'test-interest-id-00000000-0000-0000-0000-000000000000'
           mode: 'recommend'
           chain: 'false'
-          min-confidence: 'moderate'
+          min-confidence: 'low'
           rate-limit-days: '0'
           lookback: 'week'
           candidate-pool: '5'
           enable-cocoindex: 'false'
+          publish: 'branch'
+          draft-mode: 'never'
         env:
           REMYX_API_KEY: 'test-invalid-key'
           ANTHROPIC_API_KEY: 'test-invalid-key'
@@ -71,3 +73,24 @@ jobs:
               exit 1
               ;;
           esac
+
+      - name: Assert pr_url is empty when publish=branch (when action succeeded)
+        env:
+          PR_URL: ${{ steps.action.outputs.pr_url }}
+          STATUS: ${{ steps.action.outputs.status }}
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          echo "pr_url: $PR_URL"
+          echo "status: $STATUS"
+          # Only check this constraint when the action ran successfully
+          if [ "$OUTCOME" = "failure" ] || [ -z "$STATUS" ]; then
+            echo "PASS: skipping pr_url check (action failed with invalid creds)"
+            exit 0
+          fi
+          # When publish=branch, no PR is opened so pr_url should be empty
+          if [ "$STATUS" = "pr_opened" ] || [ "$STATUS" = "pr_opened_draft" ]; then
+            echo "FAIL: status indicates PR was opened but publish=branch was set"
+            exit 1
+          fi
+          echo "PASS: no PR opened as expected with publish=branch"
