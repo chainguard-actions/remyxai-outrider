@@ -314,10 +314,8 @@ runs:
       # tool (`gh-graph <file>`) to walk a module's imports + reverse-imports.
       # /usr/local/bin is already on PATH in the runner; the agent runs with
       # cwd = the cloned target repo, so paths resolve repo-relative.
-      env:
-        ACTION_PATH: ${{ github.action_path }}
       run: |
-        install -m 0755 "$ACTION_PATH/src/gh_graph.py" /usr/local/bin/gh-graph
+        install -m 0755 "$GITHUB_ACTION_PATH/src/gh_graph.py" /usr/local/bin/gh-graph
         gh-graph --selftest
     - name: Install cocoindex-code as Claude Code skill
       if: ${{ inputs.enable-cocoindex == 'true' }}
@@ -422,6 +420,5 @@ runs:
         # week / 10 in run.py too, so omitting them is safe.
         REMYX_RECOMMENDATION_PERIOD: ${{ inputs.lookback }}
         REMYX_RECOMMENDATION_LIMIT: ${{ inputs.candidate-pool }}
-        ACTION_PATH: ${{ github.action_path }}
       run: |
-        python "$ACTION_PATH/src/run.py"
+        python "$GITHUB_ACTION_PATH/src/run.py"
