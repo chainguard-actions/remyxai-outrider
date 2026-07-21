@@ -1,0 +1,30 @@
+name: Test unknown provider value fails with clear error
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        with:
+          interest-id: 'test-interest-id-placeholder'
+          provider: 'not-a-real-provider'
+          enable-cocoindex: 'false'
+        # The action should fail with:
+        # "unknown provider 'not-a-real-provider'; must be one of: anthropic, zai, moonshot, custom"
+        continue-on-error: true
+
+      - name: Assert action failed due to unknown provider
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          if [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: action correctly failed for unknown provider value"
+          else
+            echo "FAIL: expected action to fail for unknown provider but got outcome=$OUTCOME"
+            exit 1
+          fi

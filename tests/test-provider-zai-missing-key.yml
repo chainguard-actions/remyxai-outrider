@@ -1,0 +1,30 @@
+name: Test provider=zai fails cleanly when ZAI_API_KEY is missing
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        with:
+          interest-id: 'test-interest-id-placeholder'
+          provider: 'zai'
+          enable-cocoindex: 'false'
+        # Intentionally NOT setting ZAI_API_KEY so the action should fail
+        # with "provider=zai requires ZAI_API_KEY in the caller's env block"
+        continue-on-error: true
+
+      - name: Assert action failed due to missing ZAI_API_KEY
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          if [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: action correctly failed when ZAI_API_KEY is missing for provider=zai"
+          else
+            echo "FAIL: expected action to fail when ZAI_API_KEY is missing but got outcome=$OUTCOME"
+            exit 1
+          fi

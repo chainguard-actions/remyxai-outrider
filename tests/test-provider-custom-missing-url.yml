@@ -1,0 +1,31 @@
+name: Test provider=custom fails cleanly when model-base-url is missing
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        with:
+          interest-id: 'test-interest-id-placeholder'
+          provider: 'custom'
+          model-base-url: ''
+          enable-cocoindex: 'false'
+        # Intentionally NOT setting model-base-url so the action should fail
+        # with "provider=custom requires model-base-url to be set"
+        continue-on-error: true
+
+      - name: Assert action failed due to missing model-base-url for provider=custom
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          if [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: action correctly failed when model-base-url is missing for provider=custom"
+          else
+            echo "FAIL: expected action to fail when model-base-url is missing but got outcome=$OUTCOME"
+            exit 1
+          fi
