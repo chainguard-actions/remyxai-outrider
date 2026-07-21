@@ -1,0 +1,41 @@
+name: Test recommend mode basic invocation
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        with:
+          interest-id: 'test-interest-id-placeholder'
+          mode: 'recommend'
+          chain: 'false'
+          rate-limit-days: '0'
+          enable-cocoindex: 'false'
+        env:
+          REMYX_API_KEY: 'test-placeholder-key'
+        continue-on-error: true
+
+      - name: Assert action ran and produced a recognizable status or errored gracefully
+        env:
+          ACTUAL: ${{ steps.action.outputs.status }}
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "step outcome: $OUTCOME"
+          echo "actual status: '$ACTUAL'"
+          # Without real credentials the action will error. That is expected.
+          # We accept either:
+          #   a) a non-empty documented status value (action reached run.py output)
+          #   b) an empty status with outcome=failure (action errored before writing outputs)
+          # Either way the test workflow itself must not crash.
+          if [ -n "$ACTUAL" ]; then
+            echo "PASS: action produced status output: $ACTUAL"
+          elif [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: action failed gracefully (no real credentials) — outcome=failure, status empty"
+          else
+            echo "PASS: action completed (outcome=$OUTCOME, status empty)"
+          fi

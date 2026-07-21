@@ -1,0 +1,35 @@
+schema_version: 1
+fork: remyxai/outrider
+observed_landing_zones:
+- path: src/
+  shape_tags:
+  - unclassified
+  confirmed_by:
+  - arxiv: 2607.09510v1
+    mode: Mode 2 (adapted port)
+    call_site_specifics: "_agent_failure_blocks() \u2192 _write_step_summary() \u2192\
+      \ main execution path in Outrider's GitHub Actions orchestrator"
+    branch: failure-as-a-process-an-anatomy-of-cli-coding-agent-trajecto
+    timestamp: '2026-07-15T08:00:03Z'
+  - arxiv: 2607.05391v1
+    mode: Mode 2 (adapted port)
+    call_site_specifics: "process_target() \u2192 result dict at line 10450, invoked\
+      \ from main orchestrator at line 16575"
+    branch: llm-as-a-verifier-a-general-purpose-verification-framework
+    timestamp: '2026-07-17T08:01:18Z'
+  - arxiv: 2607.11598v1
+    mode: Mode 2 (adapted port)
+    call_site_specifics: "run_test_gate() in src/run.py:15848 \u2014 invoked when\
+      \ lint_status or test_status equals 'failed' after initial generation"
+    branch: interaction-scaling-grounding-the-third-axis-of-test-time-co
+    timestamp: '2026-07-19T08:08:20Z'
+  last_observed: '2026-07-19T08:08:20Z'
+rejected_shapes:
+- shape_tag: null
+  reason_code: null
+  reason_summary: ''
+  observed:
+  - arxiv: 2607.00990v1
+    timestamp: '2026-07-18T07:32:36Z'
+coordination_signals: []
+last_updated: '2026-07-19T08:08:20Z'

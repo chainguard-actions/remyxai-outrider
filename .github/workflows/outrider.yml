@@ -1,0 +1,114 @@
+name: Outrider
+
+on:
+  workflow_dispatch:
+    inputs:
+      pin-arxiv:
+        description: 'Optional arxiv_id to implement directly (bypass selection).'
+        required: false
+        default: ''
+      publish:
+        description: 'pr (default) or branch — under branch mode, produces a fork branch without opening PR/Issue.'
+        required: false
+        default: 'pr'
+      # Declared so outrider-weekly-refine.yml (the refiner) can dispatch this
+      # runner: it pins a picked draft branch (start-from-ref), pipes a gap
+      # analysis in (lead-content), and turns on staged synthesis. Defaults
+      # match the action's own, so scheduled/manual runs are unchanged.
+      mode:
+        description: 'Run mode (recommend by default). The refiner dispatches recommend against a pinned paper + start-from-ref.'
+        required: false
+        default: 'recommend'
+      start-from-ref:
+        description: 'Optional base branch to build on top of (the refiner passes the picked drafter branch). Empty = default branch.'
+        required: false
+        default: ''
+      lead-content:
+        description: 'Optional inline markdown (e.g. a gap analysis) fed to the agent as leading context.'
+        required: false
+        default: ''
+      staged-synthesis:
+        description: 'Enable the multi-pass staged-synthesis flow (the refiner sets true). Empty/false = single-pass.'
+        required: false
+        default: 'false'
+      provider:
+        description: 'anthropic (default) or zai for GLM.'
+        type: choice
+        required: false
+        default: 'anthropic'
+        options:
+          - anthropic
+          - zai
+      model:
+        description: 'Model name (empty = provider default).'
+        required: false
+        default: ''
+
+concurrency:
+  group: outrider
+  cancel-in-progress: false
+
+jobs:
+  recommend:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    env:
+      REMYX_API_KEY: ${{ secrets.REMYX_API_KEY }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      # Mint a remyx[bot] token from Remyx so the PR / Issue is authored by
+      # the Remyx GitHub App (not github-actions[bot]). The App private key
+      # stays on Remyx's side; this uses the REMYX_API_KEY already in secrets.
+      # If it can't be minted (e.g. App not installed), the token is empty and
+      # the action falls back to the workflow's built-in GITHUB_TOKEN.
+      - name: Configure provider auth
+        shell: bash
+        env:
+          ANTHROPIC_API_KEY_SECRET: ${{ secrets.ANTHROPIC_API_KEY }}
+          ZAI_API_KEY_SECRET: ${{ secrets.ZAI_API_KEY }}
+          MODEL_INPUT: ${{ inputs.model }}
+          PROVIDER_INPUT: ${{ inputs.provider }}
+        run: |
+          if [ "$PROVIDER_INPUT" = "zai" ]; then
+            safe_zai=$(printf '%s' "$ZAI_API_KEY_SECRET" | tr -d '\n\r')
+            echo "ANTHROPIC_AUTH_TOKEN=$safe_zai" >> "$GITHUB_ENV"
+          else
+            safe_anthropic=$(printf '%s' "$ANTHROPIC_API_KEY_SECRET" | tr -d '\n\r')
+            echo "ANTHROPIC_API_KEY=$safe_anthropic" >> "$GITHUB_ENV"
+          fi
+          if [ -n "$MODEL_INPUT" ]; then
+            safe_model=$(printf '%s' "$MODEL_INPUT" | tr -d '\n\r')
+            echo "ANTHROPIC_MODEL=$safe_model" >> "$GITHUB_ENV"
+          fi
+      - name: Mint Remyx bot token
+        id: remyx-bot
+        shell: bash
+        env:
+          REMYX_API_KEY_SECRET: ${{ secrets.REMYX_API_KEY }}
+          GITHUB_REPOSITORY_VALUE: ${{ github.repository }}
+        run: |
+          json_body="$(jq -n --arg repo "$GITHUB_REPOSITORY_VALUE" '{"repo": $repo}')"
+          token="$(curl -sf -X POST \
+            -H "Authorization: Bearer $REMYX_API_KEY_SECRET" \
+            -H "Content-Type: application/json" \
+            -d "$json_body" \
+            "https://engine.remyx.ai/api/v1.0/github/installation-token" \
+            | python3 -c "import sys, json; print(json.load(sys.stdin).get('token', ''))")" || token=""
+          echo "::add-mask::$token"
+          echo "token=$token" >> "$GITHUB_OUTPUT"
+      - uses: ./
+        with:
+          interest-id: '29ca03e7-454d-446c-9941-32c96c53d95d'
+          # remyx[bot] token (empty → action falls back to GITHUB_TOKEN).
+          github-token: ${{ steps.remyx-bot.outputs.token }}
+          pin-arxiv: ${{ inputs.pin-arxiv }}
+          publish: ${{ inputs.publish }}
+          # Forwarded so outrider-weekly-refine.yml can dispatch a refinement run.
+          mode: ${{ inputs.mode }}
+          start-from-ref: ${{ inputs.start-from-ref }}
+          lead-content: ${{ inputs.lead-content }}
+          staged-synthesis: ${{ inputs.staged-synthesis }}
+          model-base-url: ${{ inputs.provider == 'zai' && 'https://api.z.ai/api/anthropic' || '' }}
