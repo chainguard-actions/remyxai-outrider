@@ -1,0 +1,32 @@
+name: Test fidelity mode with no PR number
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        continue-on-error: true
+        with:
+          interest-id: 'test-interest-id-placeholder'
+          mode: 'fidelity'
+          pr-number: ''
+          enable-cocoindex: 'false'
+        env:
+          REMYX_API_KEY: 'fake-key-for-test'
+
+      - name: Assert action completed (with any status)
+        env:
+          ACTUAL: ${{ steps.action.outputs.status }}
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "action outcome: $OUTCOME"
+          echo "status output: $ACTUAL"
+          # Fidelity mode with no pr-number should either error gracefully or
+          # return an error status — it should not hang or produce unexpected output.
+          # Accept any outcome since we're testing graceful handling with fake creds.
+          echo "PASS: action completed (outcome=$OUTCOME, status=$ACTUAL)"

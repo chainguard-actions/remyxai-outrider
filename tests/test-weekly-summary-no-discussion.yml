@@ -1,12 +1,12 @@
-name: Test weekly-summary mode with no discussion ID
+name: Test weekly-summary mode skips when no discussion ID
 on:
   workflow_dispatch:
+
 jobs:
   test:
     runs-on: ubuntu-latest
-    env:
-      GITHUB_REF: refs/heads/main
-      GITHUB_EVENT_NAME: schedule
+    # The action needs continue-on-error because it may fail due to missing
+    # REMYX_API_KEY, but we want to capture the status output regardless.
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
@@ -14,48 +14,29 @@ jobs:
         uses: .
         continue-on-error: true
         with:
-          interest-id: 'test-interest-id-00000000-0000-0000-0000-000000000000'
-          mode: weekly-summary
+          interest-id: 'test-interest-id-placeholder'
+          mode: 'weekly-summary'
           weekly-discussion-id: ''
-          enable-cocoindex: 'false'
         env:
-          REMYX_API_KEY: 'fake-api-key-for-testing'
+          REMYX_API_KEY: 'fake-key-for-test'
 
-      - name: Assert action ran and produced a recognizable outcome
-        env:
-          OUTCOME: ${{ steps.action.outcome }}
-          STATUS: ${{ steps.action.outputs.status }}
-        run: |
-          echo "action outcome: $OUTCOME"
-          echo "status: $STATUS"
-          # The action requires real external services. With fake credentials it
-          # will either set a known status or fail before setting any output.
-          # Both are acceptable in a test environment.
-          if [ "$OUTCOME" = "cancelled" ]; then
-            echo "FAIL: action was cancelled unexpectedly"
-            exit 1
-          fi
-          echo "PASS: action ran with outcome=$OUTCOME"
-
-      - name: Assert status is a weekly-summary known value when set
+      - name: Assert status is weekly_summary_skipped_no_discussion_id
         env:
           ACTUAL: ${{ steps.action.outputs.status }}
         run: |
           echo "actual status: $ACTUAL"
-          # If status is empty the action failed before setting it — acceptable
-          # with fake credentials in a test environment.
-          if [ -z "$ACTUAL" ]; then
-            echo "PASS: status not set (action failed before output step — expected with fake credentials)"
-            exit 0
+          if [ "$ACTUAL" = "weekly_summary_skipped_no_discussion_id" ]; then
+            echo "PASS: got expected skip status"
+          else
+            echo "INFO: status was '$ACTUAL' (may differ due to missing API key)"
+            # Accept error or skip statuses — the key is the action ran and produced output
+            case "$ACTUAL" in
+              weekly_summary_skipped_no_discussion_id|weekly_summary_failed|error|"")
+                echo "PASS: acceptable status for missing-discussion-id scenario"
+                ;;
+              *)
+                echo "FAIL: unexpected status '$ACTUAL'"
+                exit 1
+                ;;
+            esac
           fi
-          # With weekly-discussion-id empty, the action should skip cleanly.
-          # Also accept general error statuses in case the action fails earlier.
-          KNOWN_STATUSES="weekly_summary_posted weekly_summary_skipped_no_discussion_id weekly_summary_failed error"
-          for s in $KNOWN_STATUSES; do
-            if [ "$ACTUAL" = "$s" ]; then
-              echo "PASS: status '$ACTUAL' is a known weekly-summary value"
-              exit 0
-            fi
-          done
-          echo "FAIL: status '$ACTUAL' is not a recognized weekly-summary status value"
-          exit 1

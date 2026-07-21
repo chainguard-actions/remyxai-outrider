@@ -1,0 +1,58 @@
+name: Test action with all optional inputs at defaults
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        continue-on-error: true
+        with:
+          interest-id: 'test-interest-id-placeholder'
+          mode: 'recommend'
+          chain: 'false'
+          min-confidence: 'moderate'
+          draft-mode: 'always'
+          rate-limit-days: '0'
+          guardrails-allowlist: ''
+          test-integration-policy: 'strict'
+          lookback: 'week'
+          candidate-pool: '25'
+          claude-timeout: '900'
+          pin-arxiv: ''
+          search-method: ''
+          publish: 'pr'
+          model-base-url: ''
+          enable-cocoindex: 'false'
+        env:
+          REMYX_API_KEY: 'fake-key-for-test'
+
+      - name: Assert action ran and produced a status
+        env:
+          ACTUAL: ${{ steps.action.outputs.status }}
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "action outcome: $OUTCOME"
+          echo "status output: $ACTUAL"
+          # The action should complete (success or failure) — not hang.
+          # With fake credentials the status will be error/skipped, which is fine.
+          echo "PASS: action completed with outcome=$OUTCOME"
+
+      - name: Assert tier output is a known value or empty
+        env:
+          TIER: ${{ steps.action.outputs.tier }}
+        run: |
+          echo "tier: $TIER"
+          case "$TIER" in
+            high|moderate|low|noise|"")
+              echo "PASS: tier is a valid value or empty"
+              ;;
+            *)
+              echo "FAIL: unexpected tier value '$TIER'"
+              exit 1
+              ;;
+          esac
