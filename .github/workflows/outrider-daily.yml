@@ -28,7 +28,7 @@ jobs:
       ANTHROPIC_AUTH_TOKEN: ${{ secrets.ZAI_API_KEY }}
       ANTHROPIC_MODEL: glm-5.2
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: ./
         with:
           interest-id: '29ca03e7-454d-446c-9941-32c96c53d95d'

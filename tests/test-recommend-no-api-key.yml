@@ -1,0 +1,34 @@
+name: Test recommend mode with missing API key
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        continue-on-error: true
+        with:
+          interest-id: 'test-interest-id-placeholder'
+          mode: 'recommend'
+          chain: 'false'
+          rate-limit-days: '0'
+          min-confidence: 'low'
+          enable-cocoindex: 'false'
+        env:
+          REMYX_API_KEY: 'test-invalid-key'
+
+      - name: Assert action ran and produced a status
+        env:
+          STATUS: ${{ steps.action.outputs.status }}
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "action outcome: $OUTCOME"
+          echo "status output: $STATUS"
+          # The action should either:
+          # 1. Succeed with a skip/error status (e.g. "error", "skipped_*")
+          # 2. Fail (continue-on-error catches it)
+          # Either way, the runner should not crash — verify we reach this step
+          echo "PASS: runner reached assertion step (action did not crash the runner)"

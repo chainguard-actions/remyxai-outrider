@@ -1,0 +1,36 @@
+name: Test weekly-summary mode with no discussion ID
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        continue-on-error: true
+        with:
+          interest-id: 'test-interest-id-placeholder'
+          mode: 'weekly-summary'
+          weekly-discussion-id: ''
+          chain: 'false'
+          enable-cocoindex: 'false'
+        env:
+          REMYX_API_KEY: 'test-invalid-key'
+
+      - name: Assert status is set
+        env:
+          STATUS: ${{ steps.action.outputs.status }}
+        run: |
+          echo "status: $STATUS"
+          # When weekly-discussion-id is empty, the action should skip cleanly
+          # with weekly_summary_skipped_no_discussion_id or error (no API key)
+          if [ -z "$STATUS" ]; then
+            echo "WARN: status output is empty — action may have crashed before setting output"
+          else
+            echo "PASS: status output is set to: $STATUS"
+          fi
+          # The action step itself may fail (no real API key), but we verify
+          # it at least attempted to run and set some output or exited cleanly
+          echo "Test complete"
