@@ -1,0 +1,32 @@
+name: Test provider=moonshot fails when MOONSHOT_API_KEY is missing
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        with:
+          interest-id: 'test-interest-00000000-0000-0000-0000-000000000000'
+          mode: 'recommend'
+          provider: 'moonshot'
+          rate-limit-days: '0'
+          enable-cocoindex: 'false'
+          chain: 'false'
+        # MOONSHOT_API_KEY intentionally not set in env block
+        continue-on-error: true
+
+      - name: Assert action failed due to missing MOONSHOT_API_KEY
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          if [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: action correctly failed when MOONSHOT_API_KEY is missing for provider=moonshot"
+          else
+            echo "FAIL: expected action to fail when MOONSHOT_API_KEY is missing, got outcome='$OUTCOME'"
+            exit 1
+          fi

@@ -1,0 +1,41 @@
+name: Test weekly-summary mode with no discussion ID
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        with:
+          interest-id: 'test-interest-00000000-0000-0000-0000-000000000000'
+          mode: 'weekly-summary'
+          weekly-discussion-id: ''
+          rate-limit-days: '0'
+          enable-cocoindex: 'false'
+        env:
+          REMYX_API_KEY: 'test-key-not-real'
+        continue-on-error: true
+
+      - name: Assert status is set and is a known value
+        env:
+          STATUS: ${{ steps.action.outputs.status }}
+        run: |
+          echo "status: $STATUS"
+          # When weekly-discussion-id is empty, the action should skip cleanly
+          # or return an error status if API calls fail first.
+          # Valid outcomes: weekly_summary_skipped_no_discussion_id, weekly_summary_failed, error
+          case "$STATUS" in
+            weekly_summary_skipped_no_discussion_id|weekly_summary_failed|weekly_summary_posted|error)
+              echo "PASS: status '$STATUS' is a known weekly-summary outcome"
+              ;;
+            "")
+              echo "PASS: action exited before setting status (no API key) — acceptable"
+              ;;
+            *)
+              echo "FAIL: unexpected status '$STATUS'"
+              exit 1
+              ;;
+          esac

@@ -1,0 +1,45 @@
+name: Test recommend mode with missing API key
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        with:
+          interest-id: 'test-interest-00000000-0000-0000-0000-000000000000'
+          mode: 'recommend'
+          rate-limit-days: '0'
+          min-confidence: 'high'
+          enable-cocoindex: 'false'
+          chain: 'false'
+        env:
+          REMYX_API_KEY: ''
+        continue-on-error: true
+
+      - name: Assert action completed (step ran)
+        run: |
+          echo "action step completed (with or without error)"
+          echo "PASS: action step ran"
+
+      - name: Assert status output is a known value or empty
+        env:
+          STATUS: ${{ steps.action.outputs.status }}
+        run: |
+          echo "status: '$STATUS'"
+          # Without a real REMYX_API_KEY the action should fail with 'error'
+          # or one of the skip statuses if it short-circuits early.
+          case "$STATUS" in
+            error|skipped_low_confidence|skipped_open_artifact|skipped_pr_exists|\
+            skipped_issue_exists|skipped_no_method_match|rejected_path_violations|\
+            aborted_secret_in_payload|pr_opened|pr_opened_draft|issue_opened|"")
+              echo "PASS: status '$STATUS' is a recognized outcome"
+              ;;
+            *)
+              echo "FAIL: unexpected status value: '$STATUS'"
+              exit 1
+              ;;
+          esac

@@ -1,0 +1,31 @@
+name: Test unknown provider input fails with error
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        with:
+          interest-id: 'test-interest-00000000-0000-0000-0000-000000000000'
+          mode: 'recommend'
+          provider: 'unknown-provider-xyz'
+          rate-limit-days: '0'
+          enable-cocoindex: 'false'
+          chain: 'false'
+        continue-on-error: true
+
+      - name: Assert action failed due to unknown provider
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          if [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: action correctly failed for unknown provider"
+          else
+            echo "FAIL: expected action to fail for unknown provider, got outcome='$OUTCOME'"
+            exit 1
+          fi
