@@ -40,7 +40,7 @@ jobs:
     env:
       REMYX_API_KEY: ${{ secrets.REMYX_API_KEY }}
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       # Mint a remyx[bot] token from Remyx so the PR / Issue is authored by
       # the Remyx GitHub App (not github-actions[bot]). The App private key
       # stays on Remyx's side; this uses the REMYX_API_KEY already in secrets.
@@ -55,9 +55,11 @@ jobs:
           PROVIDER_INPUT: ${{ inputs.provider }}
         run: |
           if [ "$PROVIDER_INPUT" = "zai" ]; then
-            echo "ANTHROPIC_AUTH_TOKEN=$ZAI_API_KEY_SECRET" >> "$GITHUB_ENV"
+            safe_token=$(printf '%s' "$ZAI_API_KEY_SECRET" | tr -d '\n\r')
+            echo "ANTHROPIC_AUTH_TOKEN=$safe_token" >> "$GITHUB_ENV"
           else
-            echo "ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY_SECRET" >> "$GITHUB_ENV"
+            safe_key=$(printf '%s' "$ANTHROPIC_API_KEY_SECRET" | tr -d '\n\r')
+            echo "ANTHROPIC_API_KEY=$safe_key" >> "$GITHUB_ENV"
           fi
           if [ -n "$MODEL_INPUT" ]; then
             safe_model=$(printf '%s' "$MODEL_INPUT" | tr -d '\n\r')

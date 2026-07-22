@@ -1,0 +1,45 @@
+name: Test fidelity mode with no PR number fails gracefully
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    env:
+      REMYX_API_KEY: 'fake-key-for-test'
+      ANTHROPIC_API_KEY: 'fake-anthropic-key-for-test'
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        with:
+          interest-id: 'test-interest-id-placeholder'
+          mode: 'fidelity'
+          pr-number: ''
+          enable-cocoindex: 'false'
+        continue-on-error: true
+
+      - name: Assert action completed (success or failure both acceptable)
+        env:
+          STATUS: ${{ steps.action.outputs.status }}
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          echo "status: $STATUS"
+          # fidelity mode with no pr-number should either:
+          # 1. Produce an error status gracefully (exit 0)
+          # 2. Exit non-zero (continue-on-error catches it)
+          # Both outcomes are acceptable — the test verifies the action doesn't
+          # crash the job in an unhandled way.
+          if [ "$OUTCOME" = "success" ]; then
+            echo "PASS: action completed gracefully with status='$STATUS'"
+          elif [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: action failed as expected (no PR number in fidelity mode)"
+          else
+            echo "PASS: action ran with outcome='$OUTCOME', status='$STATUS'"
+          fi

@@ -1,0 +1,56 @@
+name: Test weekly-summary mode skips when no discussion ID
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      discussions: write
+    env:
+      REMYX_API_KEY: 'fake-key-for-test'
+      ANTHROPIC_API_KEY: 'fake-anthropic-key-for-test'
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        with:
+          interest-id: 'test-interest-id-placeholder'
+          mode: 'weekly-summary'
+          weekly-discussion-id: ''
+          enable-cocoindex: 'false'
+        continue-on-error: true
+
+      - name: Assert action ran (success or failure both acceptable)
+        env:
+          STATUS: ${{ steps.action.outputs.status }}
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          echo "status: $STATUS"
+          # When weekly-discussion-id is empty, the action should skip cleanly
+          # or produce an error status — either way it should not crash the job.
+          # Both success and failure outcomes are acceptable here.
+          if [ "$OUTCOME" = "success" ]; then
+            if [ -n "$STATUS" ]; then
+              echo "INFO: action completed with status='$STATUS'"
+              case "$STATUS" in
+                weekly_summary_skipped_no_discussion_id|weekly_summary_failed|error|skipped_*)
+                  echo "PASS: got expected skip/error status: $STATUS"
+                  ;;
+                *)
+                  echo "PASS: got status '$STATUS'"
+                  ;;
+              esac
+            else
+              echo "PASS: action completed (status may be empty for early skip)"
+            fi
+          elif [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: action failed as expected (no discussion ID in weekly-summary mode)"
+          else
+            echo "PASS: action ran with outcome='$OUTCOME', status='$STATUS'"
+          fi

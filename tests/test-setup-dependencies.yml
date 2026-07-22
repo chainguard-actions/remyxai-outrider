@@ -1,0 +1,132 @@
+name: Test action setup installs required dependencies
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    env:
+      REMYX_API_KEY: 'fake-key-for-test'
+      ANTHROPIC_API_KEY: 'fake-anthropic-key-for-test'
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        with:
+          interest-id: 'test-interest-id-placeholder'
+          mode: 'recommend'
+          chain: 'false'
+          enable-cocoindex: 'false'
+          rate-limit-days: '0'
+          lookback: 'today'
+          candidate-pool: '1'
+        continue-on-error: true
+
+      - name: Record action outcome
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "Action outcome: $OUTCOME"
+
+      - name: Verify Python 3.11 was set up
+        # Python setup is the first step in the action — always runs
+        run: |
+          echo "Python version: $(python --version 2>&1)"
+          PYVER=$(python --version 2>&1 | grep -oE '[0-9]+\.[0-9]+' | head -1)
+          echo "Detected Python version: $PYVER"
+          MAJOR=$(echo "$PYVER" | cut -d. -f1)
+          MINOR=$(echo "$PYVER" | cut -d. -f2)
+          if [ "$MAJOR" -lt 3 ] || { [ "$MAJOR" -eq 3 ] && [ "$MINOR" -lt 11 ]; }; then
+            echo "FAIL: expected Python >= 3.11, got $PYVER"
+            exit 1
+          fi
+          echo "PASS: Python $PYVER is >= 3.11"
+
+      - name: Verify Node 20 was set up
+        # Node setup is the second step in the action — always runs if Python setup succeeded
+        run: |
+          echo "Node version: $(node --version 2>&1)"
+          NODEVER=$(node --version 2>&1 | grep -oE 'v[0-9]+' | head -1 | tr -d 'v')
+          echo "Detected Node major version: $NODEVER"
+          if [ "$NODEVER" -lt 20 ]; then
+            echo "FAIL: expected Node >= 20, got $NODEVER"
+            exit 1
+          fi
+          echo "PASS: Node $NODEVER is >= 20"
+
+      - name: Verify remyxai and pytest were installed (if action reached that step)
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "Action outcome: $OUTCOME"
+          # remyxai and pytest are installed in step 4 of the action (after npm install).
+          # If the action failed before step 4 (e.g. at npm install), these may not be present.
+          # We check if they're available and report, but only fail if the action succeeded
+          # (meaning all setup steps ran).
+          REMYX_OK=0
+          PYTEST_OK=0
+          if python -c "import remyxai" 2>/dev/null; then
+            echo "remyxai: installed"
+            REMYX_OK=1
+          else
+            echo "remyxai: not installed"
+          fi
+          if python -m pytest --version 2>/dev/null; then
+            echo "pytest: installed"
+            PYTEST_OK=1
+          else
+            echo "pytest: not installed"
+          fi
+          if [ "$OUTCOME" = "success" ]; then
+            if [ "$REMYX_OK" -eq 0 ]; then
+              echo "FAIL: action succeeded but remyxai not installed"
+              exit 1
+            fi
+            if [ "$PYTEST_OK" -eq 0 ]; then
+              echo "FAIL: action succeeded but pytest not installed"
+              exit 1
+            fi
+            echo "PASS: remyxai and pytest are installed"
+          else
+            echo "INFO: action did not succeed (outcome=$OUTCOME); skipping strict dependency check"
+            echo "PASS: dependency check skipped (action did not complete setup)"
+          fi
+
+      - name: Verify poppler-utils and gh-graph (if action reached those steps)
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "Action outcome: $OUTCOME"
+          POPPLER_OK=0
+          GHGRAPH_OK=0
+          if command -v pdftotext >/dev/null 2>&1; then
+            echo "pdftotext: available at $(command -v pdftotext)"
+            POPPLER_OK=1
+          else
+            echo "pdftotext: not found"
+          fi
+          if command -v gh-graph >/dev/null 2>&1; then
+            echo "gh-graph: available at $(command -v gh-graph)"
+            GHGRAPH_OK=1
+          else
+            echo "gh-graph: not found"
+          fi
+          if [ "$OUTCOME" = "success" ]; then
+            if [ "$POPPLER_OK" -eq 0 ]; then
+              echo "FAIL: action succeeded but pdftotext not installed"
+              exit 1
+            fi
+            if [ "$GHGRAPH_OK" -eq 0 ]; then
+              echo "FAIL: action succeeded but gh-graph not installed"
+              exit 1
+            fi
+            echo "PASS: pdftotext and gh-graph are available"
+          else
+            echo "INFO: action did not succeed (outcome=$OUTCOME); skipping strict tool check"
+            echo "PASS: tool check skipped (action did not complete setup)"
+          fi
