@@ -20,7 +20,7 @@ jobs:
       REMYX_API_KEY: ${{ secrets.REMYX_API_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       # Mint a remyx[bot] token from Remyx so the PR / Issue is authored by
       # the Remyx GitHub App (not github-actions[bot]). The App private key
       # stays on Remyx's side; this uses the REMYX_API_KEY already in secrets.
@@ -31,14 +31,9 @@ jobs:
         shell: bash
         env:
           REMYX_API_KEY: ${{ secrets.REMYX_API_KEY }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
+          GH_REPOSITORY: ${{ github.repository }}
         run: |
-          token="$(curl -sf -X POST \
-            -H "Authorization: Bearer $REMYX_API_KEY" \
-            -H "Content-Type: application/json" \
-            -d "{\"repo\": \"$GITHUB_REPOSITORY\"}" \
-            "https://engine.remyx.ai/api/v1.0/github/installation-token" \
-            | python3 -c "import sys, json; print(json.load(sys.stdin).get('token', ''))")" || token=""
+          token="$(curl -sf -X POST             -H "Authorization: Bearer $REMYX_API_KEY"             -H "Content-Type: application/json"             -d "{\"repo\": \"$GH_REPOSITORY\"}"             "https://engine.remyx.ai/api/v1.0/github/installation-token"             | python3 -c "import sys, json; print(json.load(sys.stdin).get('token', ''))")" || token=""
           echo "::add-mask::$token"
           echo "token=$token" >> "$GITHUB_OUTPUT"
       - uses: ./

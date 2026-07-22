@@ -1,4 +1,4 @@
-name: Test publish branch mode
+name: Test basic recommend mode
 on:
   workflow_dispatch:
 jobs:
@@ -12,22 +12,17 @@ jobs:
         with:
           interest-id: 'test-interest-id-00000000-0000-0000-0000-000000000000'
           mode: 'recommend'
-          publish: 'branch'
           chain: 'false'
           rate-limit-days: '0'
           min-confidence: 'low'
           enable-cocoindex: 'false'
-          candidate-pool: '5'
-          lookback: 'today'
         continue-on-error: true
 
-      - name: Assert status output and pr_url are consistent with publish=branch
+      - name: Assert status output is set or action errored without API keys
         env:
           STATUS: ${{ steps.action.outputs.status }}
-          PR_URL: ${{ steps.action.outputs.pr_url }}
         run: |
           echo "status: '$STATUS'"
-          echo "pr_url: '$PR_URL'"
           # Without REMYX_API_KEY / ANTHROPIC_API_KEY the action may crash
           # before setting any output — that is acceptable in the test env.
           if [ -z "$STATUS" ]; then
@@ -35,13 +30,19 @@ jobs:
             echo "PASS: acceptable outcome when API keys are absent"
             exit 0
           fi
-          # In publish=branch mode, no PR should be opened.
+          # If a status was set, verify it is a recognised value.
           case "$STATUS" in
-            pr_opened|pr_opened_draft)
-              echo "FAIL: status is '$STATUS' but publish=branch should not open a PR"
-              exit 1
+            pr_opened|pr_opened_draft|issue_opened|\
+            skipped_low_confidence|skipped_open_artifact|\
+            skipped_issues_disabled|skipped_pr_exists|\
+            skipped_issue_exists|skipped_test_failure|\
+            claude_failed|skipped_no_method_match|\
+            rejected_path_violations|aborted_secret_in_payload|\
+            error)
+              echo "PASS: status '$STATUS' is a recognised value"
               ;;
             *)
-              echo "PASS: status '$STATUS' is consistent with publish=branch mode"
+              echo "FAIL: status '$STATUS' is not a recognised value"
+              exit 1
               ;;
           esac

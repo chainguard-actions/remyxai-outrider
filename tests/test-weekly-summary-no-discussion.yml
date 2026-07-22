@@ -1,4 +1,4 @@
-name: Test publish branch mode
+name: Test weekly-summary mode with no discussion ID
 on:
   workflow_dispatch:
 jobs:
@@ -11,23 +11,16 @@ jobs:
         uses: .
         with:
           interest-id: 'test-interest-id-00000000-0000-0000-0000-000000000000'
-          mode: 'recommend'
-          publish: 'branch'
-          chain: 'false'
-          rate-limit-days: '0'
-          min-confidence: 'low'
+          mode: 'weekly-summary'
+          weekly-discussion-id: ''
           enable-cocoindex: 'false'
-          candidate-pool: '5'
-          lookback: 'today'
         continue-on-error: true
 
-      - name: Assert status output and pr_url are consistent with publish=branch
+      - name: Assert status is acceptable for weekly-summary with no discussion ID
         env:
           STATUS: ${{ steps.action.outputs.status }}
-          PR_URL: ${{ steps.action.outputs.pr_url }}
         run: |
           echo "status: '$STATUS'"
-          echo "pr_url: '$PR_URL'"
           # Without REMYX_API_KEY / ANTHROPIC_API_KEY the action may crash
           # before setting any output — that is acceptable in the test env.
           if [ -z "$STATUS" ]; then
@@ -35,13 +28,16 @@ jobs:
             echo "PASS: acceptable outcome when API keys are absent"
             exit 0
           fi
-          # In publish=branch mode, no PR should be opened.
+          # If a status was set, accept the expected weekly-summary outcomes.
           case "$STATUS" in
-            pr_opened|pr_opened_draft)
-              echo "FAIL: status is '$STATUS' but publish=branch should not open a PR"
-              exit 1
+            weekly_summary_skipped_no_discussion_id|\
+            weekly_summary_failed|\
+            weekly_summary_posted|\
+            error)
+              echo "PASS: status '$STATUS' is acceptable for weekly-summary mode"
               ;;
             *)
-              echo "PASS: status '$STATUS' is consistent with publish=branch mode"
+              echo "FAIL: unexpected status '$STATUS' for weekly-summary mode"
+              exit 1
               ;;
           esac
