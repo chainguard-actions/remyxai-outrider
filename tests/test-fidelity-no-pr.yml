@@ -1,0 +1,38 @@
+name: Test fidelity mode without pr-number fails or errors cleanly
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        with:
+          interest-id: 'test-interest-id-placeholder'
+          mode: 'fidelity'
+          pr-number: ''
+          enable-cocoindex: 'false'
+        env:
+          REMYX_API_KEY: 'test-placeholder-key'
+        continue-on-error: true
+
+      - name: Assert action failed or errored cleanly without pr-number
+        env:
+          STATUS: ${{ steps.action.outputs.status }}
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          echo "status: $STATUS"
+          # fidelity mode requires pr-number; without it the action should
+          # fail or produce status=error. Either is acceptable.
+          if [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: action failed cleanly (expected without pr-number or valid API key)"
+          elif [ "$STATUS" = "error" ]; then
+            echo "PASS: action produced status=error (expected without pr-number or valid API key)"
+          else
+            echo "FAIL: expected failure or error status, got outcome='$OUTCOME' status='$STATUS'"
+            exit 1
+          fi

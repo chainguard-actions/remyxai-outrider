@@ -1,0 +1,37 @@
+name: Test provider input validation fails cleanly for missing secret
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        with:
+          interest-id: 'test-interest-id-placeholder'
+          mode: 'recommend'
+          provider: 'zai'
+          enable-cocoindex: 'false'
+          chain: 'false'
+        env:
+          REMYX_API_KEY: 'test-placeholder-key'
+          # ZAI_API_KEY intentionally NOT set — should trigger validation error
+        continue-on-error: true
+
+      - name: Assert action failed due to missing ZAI_API_KEY
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          # provider=zai without ZAI_API_KEY must fail — the action's
+          # "Configure backend from provider input" step emits an error
+          # and exits 1 when the required secret is absent.
+          if [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: action failed as expected when ZAI_API_KEY is missing"
+          else
+            echo "FAIL: expected action to fail when provider=zai but ZAI_API_KEY is not set"
+            exit 1
+          fi

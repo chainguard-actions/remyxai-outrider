@@ -1,0 +1,57 @@
+name: Test recommend mode basic invocation
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        with:
+          interest-id: 'test-interest-id-placeholder'
+          mode: 'recommend'
+          rate-limit-days: '0'
+          min-confidence: 'low'
+          chain: 'false'
+          enable-cocoindex: 'false'
+          publish: 'branch'
+        env:
+          REMYX_API_KEY: 'test-placeholder-key'
+        continue-on-error: true
+
+      - name: Assert action produced a status output or failed cleanly
+        env:
+          STATUS: ${{ steps.action.outputs.status }}
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          echo "status: $STATUS"
+          # Without a valid REMYX_API_KEY, the action is expected to fail
+          # or produce status=error. We verify it ran and produced a
+          # recognizable outcome rather than crashing the runner.
+          VALID_STATUSES="pr_opened pr_opened_draft issue_opened skipped_low_confidence skipped_open_artifact skipped_issues_disabled skipped_pr_exists skipped_issue_exists skipped_test_failure claude_failed skipped_no_method_match rejected_path_violations aborted_secret_in_payload error"
+          if [ -z "$STATUS" ]; then
+            if [ "$OUTCOME" = "failure" ]; then
+              echo "PASS: action failed cleanly without status (expected without valid API key)"
+            else
+              echo "FAIL: action succeeded but produced no status output"
+              exit 1
+            fi
+          else
+            FOUND=0
+            for s in $VALID_STATUSES; do
+              if [ "$STATUS" = "$s" ]; then
+                FOUND=1
+                break
+              fi
+            done
+            if [ "$FOUND" = "1" ]; then
+              echo "PASS: got valid status '$STATUS'"
+            else
+              echo "FAIL: got unrecognized status '$STATUS'"
+              exit 1
+            fi
+          fi
