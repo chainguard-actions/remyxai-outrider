@@ -1,0 +1,53 @@
+name: Test branch publish mode with no credentials
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        with:
+          interest-id: 'test-interest-id-00000000-0000-0000-0000-000000000000'
+          mode: 'recommend'
+          publish: 'branch'
+          chain: 'false'
+          rate-limit-days: '0'
+          min-confidence: 'low'
+          enable-cocoindex: 'false'
+        # No API credentials — expect error or skip status, or setup failure
+        continue-on-error: true
+
+      - name: Assert action did not open a PR in branch publish mode
+        env:
+          STATUS: ${{ steps.action.outputs.status }}
+          PR_URL: ${{ steps.action.outputs.pr_url }}
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          echo "status:  $STATUS"
+          echo "pr_url:  $PR_URL"
+          # In branch publish mode, the action must NOT open a PR.
+          # It may fail during setup (npm/pip installs) — outcome=failure, status empty.
+          # It may skip/error during run.py — status=error/skipped_*/etc.
+          # Both are acceptable. Only pr_opened/pr_opened_draft is a failure.
+          if [ "$STATUS" = "pr_opened" ] || [ "$STATUS" = "pr_opened_draft" ]; then
+            echo "FAIL: branch publish mode should not open a PR (status=$STATUS)"
+            exit 1
+          fi
+          echo "PASS: no PR opened in branch mode (outcome=$OUTCOME, status=$STATUS)"
+
+      - name: Assert pr_url is empty in branch mode
+        env:
+          PR_URL: ${{ steps.action.outputs.pr_url }}
+        run: |
+          echo "pr_url: $PR_URL"
+          if [ -n "$PR_URL" ]; then
+            echo "FAIL: pr_url should be empty in branch publish mode, got: $PR_URL"
+            exit 1
+          fi
+          echo "PASS: pr_url is empty as expected in branch publish mode"

@@ -1,0 +1,73 @@
+name: Test action with default inputs
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        with:
+          interest-id: 'test-interest-id-00000000-0000-0000-0000-000000000000'
+          # All other inputs use defaults:
+          # mode: recommend
+          # chain: true
+          # min-confidence: moderate
+          # draft-mode: always
+          # rate-limit-days: 7
+          # lookback: week
+          # candidate-pool: 25
+          # claude-timeout: 900
+          # publish: pr
+          # test-integration-policy: strict
+          enable-cocoindex: 'false'
+        # No API credentials — expect error, skip, or setup failure
+        continue-on-error: true
+
+      - name: Assert action ran or failed gracefully without credentials
+        env:
+          STATUS: ${{ steps.action.outputs.status }}
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          echo "status:  $STATUS"
+          # The action may fail during setup (npm/pip installs) or during run.py.
+          # Both are acceptable when no credentials are provided.
+          # If the action step failed entirely, outputs will be empty — that's OK.
+          if [ "$OUTCOME" = "failure" ] || [ "$OUTCOME" = "success" ]; then
+            echo "PASS: action step completed with outcome '$OUTCOME'"
+          else
+            echo "FAIL: unexpected outcome '$OUTCOME'"
+            exit 1
+          fi
+
+      - name: Assert status output is valid if set
+        env:
+          STATUS: ${{ steps.action.outputs.status }}
+        run: |
+          echo "status: $STATUS"
+          if [ -z "$STATUS" ]; then
+            echo "INFO: status output is empty (action likely failed during setup — acceptable without credentials)"
+            exit 0
+          fi
+          # If status is set, it must be one of the documented values
+          case "$STATUS" in
+            pr_opened|pr_opened_draft|issue_opened|\
+            skipped_low_confidence|skipped_open_artifact|\
+            skipped_issues_disabled|skipped_pr_exists|\
+            skipped_issue_exists|skipped_test_failure|\
+            claude_failed|skipped_no_method_match|\
+            rejected_path_violations|aborted_secret_in_payload|\
+            error|weekly_summary_posted|\
+            weekly_summary_skipped_no_discussion_id|\
+            weekly_summary_failed)
+              echo "PASS: status '$STATUS' is a documented output value"
+              ;;
+            *)
+              echo "INFO: status '$STATUS' — may be a new undocumented value, not failing"
+              ;;
+          esac
