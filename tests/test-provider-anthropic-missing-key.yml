@@ -1,0 +1,33 @@
+name: Test anthropic provider requires ANTHROPIC_API_KEY
+on:
+  workflow_dispatch:
+
+jobs:
+  test-anthropic-missing-key:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      # The action's "Configure backend from provider input" step checks that
+      # ANTHROPIC_API_KEY is set when provider=anthropic. Without it, the step
+      # exits 1 with a clear error message. We verify the action fails cleanly.
+      - id: action
+        uses: .
+        continue-on-error: true
+        with:
+          interest-id: 'test-interest-id-placeholder'
+          provider: 'anthropic'
+        env:
+          REMYX_API_KEY: 'placeholder-not-real'
+          # ANTHROPIC_API_KEY intentionally NOT set
+
+      - name: Assert action failed due to missing ANTHROPIC_API_KEY
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          if [ "$OUTCOME" != "failure" ]; then
+            echo "FAIL: expected action to fail when ANTHROPIC_API_KEY is missing for provider=anthropic, got: $OUTCOME"
+            exit 1
+          fi
+          echo "PASS: action correctly failed when ANTHROPIC_API_KEY is missing for provider=anthropic"
