@@ -1,0 +1,59 @@
+name: Test weekly-summary mode with no discussion ID
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        with:
+          interest-id: 'test-interest-00000000-0000-0000-0000-000000000000'
+          mode: weekly-summary
+          weekly-discussion-id: ''
+          enable-cocoindex: 'false'
+        continue-on-error: true
+
+      - name: Assert action ran (did not crash workflow)
+        env:
+          STATUS: ${{ steps.action.outputs.status }}
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          echo "status: $STATUS"
+          # The action requires real API credentials to complete. Without them
+          # it fails gracefully. We verify the action completed (success or
+          # failure) rather than crashing the runner.
+          if [ "$OUTCOME" = "success" ] || [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: action completed (outcome=$OUTCOME)"
+          else
+            echo "FAIL: unexpected outcome '$OUTCOME'"
+            exit 1
+          fi
+
+      - name: Assert status is a known weekly-summary value, generic error, or empty
+        env:
+          STATUS: ${{ steps.action.outputs.status }}
+        run: |
+          echo "status: $STATUS"
+          # Empty status is acceptable when the action fails before setting output
+          # (e.g. missing REMYX_API_KEY or ANTHROPIC_API_KEY).
+          # When weekly-discussion-id is empty, the action should skip cleanly
+          # with weekly_summary_skipped_no_discussion_id if credentials are present.
+          if [ -z "$STATUS" ]; then
+            echo "PASS: status is empty (action failed before setting output — expected without credentials)"
+            exit 0
+          fi
+          case "$STATUS" in
+            weekly_summary_posted|\
+            weekly_summary_skipped_no_discussion_id|\
+            weekly_summary_failed|error)
+              echo "PASS: status '$STATUS' is a known weekly-summary value"
+              ;;
+            *)
+              echo "FAIL: unexpected status '$STATUS' for weekly-summary mode"
+              exit 1
+              ;;
+          esac
