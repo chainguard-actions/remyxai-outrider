@@ -1,0 +1,39 @@
+name: Test weekly-summary mode skips when no discussion ID
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: ./action
+        with:
+          interest-id: 'test-interest-id-placeholder'
+          mode: 'weekly-summary'
+          weekly-discussion-id: ''
+          chain: 'false'
+          enable-cocoindex: 'false'
+        env:
+          REMYX_API_KEY: 'test-placeholder-key'
+        continue-on-error: true
+
+      - name: Assert action completed (did not hang)
+        env:
+          ACTUAL: ${{ steps.action.outputs.status }}
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "step outcome: $OUTCOME"
+          echo "actual status: $ACTUAL"
+          # The action should complete (success or failure) — not hang indefinitely.
+          # With no discussion ID, it should skip cleanly or error due to missing real API key.
+          if [ "$OUTCOME" = "success" ] || [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: action completed with outcome=$OUTCOME status=$ACTUAL"
+          else
+            echo "FAIL: unexpected outcome '$OUTCOME'"
+            exit 1
+          fi

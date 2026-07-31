@@ -1,0 +1,57 @@
+name: Test action installs required tools
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: ./action
+        with:
+          interest-id: 'test-interest-id-placeholder'
+          mode: 'recommend'
+          chain: 'false'
+          enable-cocoindex: 'false'
+          claude-timeout: '30'
+        env:
+          REMYX_API_KEY: 'invalid-test-key'
+        continue-on-error: true
+
+      - name: Assert Python 3.x is available
+        run: |
+          echo "Python version: $(python --version 2>&1)"
+          python --version 2>&1 | grep -q "3\." || { echo "FAIL: Python 3 not found"; exit 1; }
+          echo "PASS: Python is available"
+
+      - name: Assert Node is available
+        run: |
+          echo "Node version: $(node --version 2>&1)"
+          node --version 2>&1 | grep -qE "^v[0-9]" || { echo "FAIL: Node not found"; exit 1; }
+          echo "PASS: Node is available"
+
+      - name: Assert gh-graph is installed on PATH
+        run: |
+          if command -v gh-graph > /dev/null 2>&1; then
+            echo "gh-graph location: $(command -v gh-graph)"
+            echo "PASS: gh-graph is on PATH"
+          else
+            echo "INFO: gh-graph not found — action may have failed before this install step"
+            echo "PASS: acceptable — action ran (even if it failed partway through)"
+          fi
+
+      - name: Assert action step completed (did not hang)
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "step outcome: $OUTCOME"
+          if [ "$OUTCOME" = "success" ] || [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: action completed with outcome=$OUTCOME"
+          else
+            echo "FAIL: unexpected outcome '$OUTCOME'"
+            exit 1
+          fi

@@ -1,0 +1,40 @@
+name: Test fidelity mode with no PR number
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: ./action
+        with:
+          interest-id: 'test-interest-id-placeholder'
+          mode: 'fidelity'
+          pr-number: ''
+          chain: 'false'
+          enable-cocoindex: 'false'
+          claude-timeout: '30'
+        env:
+          REMYX_API_KEY: 'invalid-test-key'
+        continue-on-error: true
+
+      - name: Assert action completed (did not hang)
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+          STATUS: ${{ steps.action.outputs.status }}
+        run: |
+          echo "step outcome: $OUTCOME"
+          echo "status output: $STATUS"
+          # The action should complete (success or failure) — not hang indefinitely.
+          # With no real API key and no PR number, it should error out quickly.
+          if [ "$OUTCOME" = "success" ] || [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: action completed with outcome=$OUTCOME"
+          else
+            echo "FAIL: unexpected outcome '$OUTCOME'"
+            exit 1
+          fi

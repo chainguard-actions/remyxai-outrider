@@ -1,0 +1,41 @@
+name: Test provider=zai fails when ZAI_API_KEY is missing
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: ./action
+        with:
+          interest-id: 'test-interest-id-placeholder'
+          mode: 'recommend'
+          provider: 'zai'
+          chain: 'false'
+          enable-cocoindex: 'false'
+          claude-timeout: '30'
+        env:
+          REMYX_API_KEY: 'invalid-test-key'
+          # ZAI_API_KEY intentionally not set
+        continue-on-error: true
+
+      - name: Assert action failed (missing ZAI_API_KEY or install error)
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "step outcome: $OUTCOME"
+          # The action should fail — either because:
+          # 1. The 'Configure backend from provider input' step fails due to missing ZAI_API_KEY, OR
+          # 2. An earlier install step fails (npm/pip) in the test environment.
+          # Either way, the action must NOT succeed.
+          if [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: action correctly failed (missing ZAI_API_KEY or install error)"
+          else
+            echo "FAIL: expected action to fail, got outcome=$OUTCOME"
+            exit 1
+          fi

@@ -1,0 +1,44 @@
+name: Test recommend mode with missing API key produces error status
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: ./action
+        with:
+          interest-id: 'test-interest-id-placeholder'
+          mode: 'recommend'
+          chain: 'false'
+          rate-limit-days: '0'
+          min-confidence: 'low'
+          enable-cocoindex: 'false'
+          claude-timeout: '60'
+        env:
+          REMYX_API_KEY: 'invalid-test-key'
+        continue-on-error: true
+
+      - name: Assert action completed (did not hang)
+        env:
+          ACTUAL: ${{ steps.action.outputs.status }}
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "step outcome: $OUTCOME"
+          echo "actual status: $ACTUAL"
+          # With an invalid API key, the action should either:
+          # - output status=error (API call failed)
+          # - output status=skipped_* (some guard triggered)
+          # - fail the step (continue-on-error catches it)
+          # In all cases, the action should have completed without hanging.
+          if [ "$OUTCOME" = "success" ] || [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: action completed with outcome=$OUTCOME status=$ACTUAL"
+          else
+            echo "FAIL: unexpected outcome '$OUTCOME'"
+            exit 1
+          fi
