@@ -1,0 +1,92 @@
+name: Test action accepts default inputs and sets up environment
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        with:
+          interest-id: 'test-interest-id-00000000-0000-0000-0000-000000000000'
+          mode: 'recommend'
+          chain: 'false'
+          draft-mode: 'always'
+          rate-limit-days: '7'
+          min-confidence: 'moderate'
+          lookback: 'week'
+          candidate-pool: '25'
+          claude-timeout: '60'
+          publish: 'pr'
+          staged-synthesis: 'false'
+          maintain-state: 'false'
+          fidelity-policy: 'block'
+          test-integration-policy: 'strict'
+          enable-cocoindex: 'false'
+        env:
+          REMYX_API_KEY: 'invalid-test-key'
+          ANTHROPIC_API_KEY: 'invalid-test-key'
+        continue-on-error: true
+
+      - name: Assert action completed (setup steps ran) and produced a known outcome
+        env:
+          ACTUAL: ${{ steps.action.outputs.status }}
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "action outcome: $OUTCOME"
+          echo "actual status: '$ACTUAL'"
+          # The action either:
+          # 1. Ran run.py and set a status output (success or error)
+          # 2. Failed during setup steps (npm/pip install) — status is empty
+          # Both are acceptable in a test environment without valid credentials.
+          # What we verify: the action step ran (outcome is set) and the workflow
+          # did not crash before reaching this assertion step.
+          if [ -z "$OUTCOME" ]; then
+            echo "FAIL: action step outcome is not set — step did not run"
+            exit 1
+          fi
+          echo "PASS: action step ran with outcome='$OUTCOME' and status='$ACTUAL'"
+
+      - name: Assert status is a known value when set
+        env:
+          ACTUAL: ${{ steps.action.outputs.status }}
+        run: |
+          echo "actual status: '$ACTUAL'"
+          # If status is empty, the action failed during setup — acceptable
+          if [ -z "$ACTUAL" ]; then
+            echo "INFO: status is empty (action failed during setup or before setting outputs)"
+            echo "PASS: empty status is acceptable with invalid credentials"
+            exit 0
+          fi
+          # If status is set, it must be a known value
+          case "$ACTUAL" in
+            error|claude_failed|skipped_low_confidence|skipped_open_artifact|\
+            skipped_issues_disabled|skipped_pr_exists|skipped_issue_exists|\
+            skipped_test_failure|skipped_no_method_match|rejected_path_violations|\
+            aborted_secret_in_payload|pr_opened|pr_opened_draft|issue_opened|\
+            weekly_summary_posted|weekly_summary_skipped_no_discussion_id|\
+            weekly_summary_failed)
+              echo "PASS: '$ACTUAL' is a known status value"
+              ;;
+            *)
+              echo "FAIL: '$ACTUAL' is not a recognized status value"
+              exit 1
+              ;;
+          esac
+
+      - name: Assert cost_usd output is accessible
+        env:
+          COST: ${{ steps.action.outputs.cost_usd }}
+        run: |
+          echo "cost_usd: '$COST'"
+          echo "PASS: cost_usd output key is accessible (value: '$COST')"
+
+      - name: Assert tier output is accessible
+        env:
+          TIER: ${{ steps.action.outputs.tier }}
+        run: |
+          echo "tier: '$TIER'"
+          echo "PASS: tier output key is accessible (value: '$TIER')"

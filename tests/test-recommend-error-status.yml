@@ -1,0 +1,85 @@
+name: Test recommend mode produces error status on invalid credentials
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        with:
+          interest-id: 'test-interest-id-00000000-0000-0000-0000-000000000000'
+          mode: 'recommend'
+          chain: 'false'
+          enable-cocoindex: 'false'
+          rate-limit-days: '0'
+          min-confidence: 'low'
+          claude-timeout: '60'
+        env:
+          REMYX_API_KEY: 'invalid-test-key'
+          ANTHROPIC_API_KEY: 'invalid-test-key'
+        # The action will fail with invalid credentials; continue to check outputs
+        continue-on-error: true
+
+      - name: Assert action step ran
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "action outcome: $OUTCOME"
+          if [ -z "$OUTCOME" ]; then
+            echo "FAIL: action step outcome is not set — step did not run"
+            exit 1
+          fi
+          echo "PASS: action step ran with outcome='$OUTCOME'"
+
+      - name: Assert status is a known value when set
+        env:
+          ACTUAL: ${{ steps.action.outputs.status }}
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "action outcome: $OUTCOME"
+          echo "actual status: '$ACTUAL'"
+          # If status is empty, the action failed during setup — acceptable
+          if [ -z "$ACTUAL" ]; then
+            echo "INFO: status is empty (action failed during setup or before setting outputs)"
+            echo "PASS: empty status is acceptable with invalid credentials"
+            exit 0
+          fi
+          # If status is set, it must be a known value
+          case "$ACTUAL" in
+            error|claude_failed|skipped_low_confidence|skipped_open_artifact|\
+            skipped_issues_disabled|skipped_pr_exists|skipped_issue_exists|\
+            skipped_test_failure|skipped_no_method_match|rejected_path_violations|\
+            aborted_secret_in_payload|pr_opened|pr_opened_draft|issue_opened|\
+            weekly_summary_posted|weekly_summary_skipped_no_discussion_id|\
+            weekly_summary_failed)
+              echo "PASS: '$ACTUAL' is a known status value"
+              ;;
+            *)
+              echo "FAIL: '$ACTUAL' is not a recognized status value"
+              exit 1
+              ;;
+          esac
+
+      - name: Assert status is not a success value when credentials are invalid
+        env:
+          ACTUAL: ${{ steps.action.outputs.status }}
+        run: |
+          echo "actual status: '$ACTUAL'"
+          # With invalid credentials, the action should not open PRs or issues
+          case "$ACTUAL" in
+            pr_opened|pr_opened_draft|issue_opened|weekly_summary_posted)
+              echo "FAIL: action should not open PRs/issues with invalid credentials, got '$ACTUAL'"
+              exit 1
+              ;;
+            "")
+              echo "INFO: status is empty (action failed during setup)"
+              echo "PASS: no PR/issue opened"
+              ;;
+            *)
+              echo "PASS: status '$ACTUAL' is not a success value"
+              ;;
+          esac

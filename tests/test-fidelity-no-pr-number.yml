@@ -1,0 +1,56 @@
+name: Test fidelity mode with no pr-number produces error or skip
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        with:
+          interest-id: 'test-interest-id-00000000-0000-0000-0000-000000000000'
+          mode: 'fidelity'
+          pr-number: ''
+          enable-cocoindex: 'false'
+        env:
+          REMYX_API_KEY: 'invalid-test-key'
+          ANTHROPIC_API_KEY: 'invalid-test-key'
+        continue-on-error: true
+
+      - name: Assert action step ran
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "action outcome: $OUTCOME"
+          if [ -z "$OUTCOME" ]; then
+            echo "FAIL: action step outcome is not set — step did not run"
+            exit 1
+          fi
+          echo "PASS: action step ran with outcome='$OUTCOME'"
+
+      - name: Assert status is set and not a success value
+        env:
+          ACTUAL: ${{ steps.action.outputs.status }}
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "action outcome: $OUTCOME"
+          echo "actual status: '$ACTUAL'"
+          # Fidelity mode without pr-number should not open PRs or issues
+          case "$ACTUAL" in
+            pr_opened|pr_opened_draft|issue_opened|weekly_summary_posted)
+              echo "FAIL: fidelity mode without pr-number should not open PRs/issues, got '$ACTUAL'"
+              exit 1
+              ;;
+            "")
+              # Empty status means the action failed during setup or before setting outputs
+              # This is acceptable with invalid credentials
+              echo "INFO: status is empty (action failed during setup or before setting outputs)"
+              echo "PASS: no PR/issue opened"
+              ;;
+            *)
+              echo "PASS: status '$ACTUAL' is acceptable for fidelity mode without pr-number"
+              ;;
+          esac

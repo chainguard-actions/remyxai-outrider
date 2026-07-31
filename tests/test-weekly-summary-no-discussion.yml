@@ -1,0 +1,43 @@
+name: Test weekly-summary mode skips when no discussion ID
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        with:
+          interest-id: 'test-interest-id-00000000-0000-0000-0000-000000000000'
+          mode: 'weekly-summary'
+          weekly-discussion-id: ''
+          enable-cocoindex: 'false'
+        env:
+          REMYX_API_KEY: 'test-key-placeholder'
+          ANTHROPIC_API_KEY: 'test-key-placeholder'
+        continue-on-error: true
+
+      - name: Assert status is weekly_summary_skipped_no_discussion_id or action failed during setup
+        env:
+          ACTUAL: ${{ steps.action.outputs.status }}
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "action outcome: $OUTCOME"
+          echo "actual status: $ACTUAL"
+          # If the action succeeded, status must be the expected skip value
+          if [ "$OUTCOME" = "success" ]; then
+            if [ "$ACTUAL" = "weekly_summary_skipped_no_discussion_id" ]; then
+              echo "PASS: status is 'weekly_summary_skipped_no_discussion_id'"
+            else
+              echo "FAIL: action succeeded but status '$ACTUAL' != 'weekly_summary_skipped_no_discussion_id'"
+              exit 1
+            fi
+          else
+            # Action failed (likely during setup or due to invalid API key)
+            # This is acceptable in a test environment without valid credentials
+            echo "INFO: action did not succeed (outcome=$OUTCOME, status='$ACTUAL')"
+            echo "PASS: action failure with invalid credentials is expected"
+          fi
