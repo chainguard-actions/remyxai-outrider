@@ -1,0 +1,35 @@
+name: Test unknown provider fails with clear error
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        continue-on-error: true
+        with:
+          interest-id: 'test-interest-id-00000000-0000-0000-0000-000000000000'
+          mode: 'recommend'
+          provider: 'unknown-provider-xyz'
+          enable-cocoindex: 'false'
+
+      - name: Assert action fails when unknown provider is specified
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          # The action's "Configure backend from provider input" step should
+          # fail with "unknown provider" error when an invalid provider is given
+          if [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: action correctly failed for unknown provider"
+          elif [ "$OUTCOME" = "success" ]; then
+            echo "FAIL: action should have failed for unknown provider 'unknown-provider-xyz'"
+            exit 1
+          else
+            echo "FAIL: unexpected outcome '$OUTCOME'"
+            exit 1
+          fi
