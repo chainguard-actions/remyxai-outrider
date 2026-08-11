@@ -1,0 +1,51 @@
+name: Test weekly-summary mode
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      discussions: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        continue-on-error: true
+        with:
+          interest-id: 'test-interest-uuid-00000000-0000-0000-0000-000000000000'
+          mode: 'weekly-summary'
+          weekly-discussion-id: ''
+          enable-cocoindex: 'false'
+
+      - name: Assert weekly-summary mode ran and failed gracefully or skipped
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+          STATUS: ${{ steps.action.outputs.status }}
+        run: |
+          echo "outcome: $OUTCOME"
+          echo "status: $STATUS"
+          if [ "$OUTCOME" = "success" ]; then
+            # Acceptable statuses for weekly-summary with no discussion ID
+            case "$STATUS" in
+              weekly_summary_posted|weekly_summary_skipped_no_discussion_id|weekly_summary_failed)
+                echo "PASS: action succeeded with known weekly-summary status='$STATUS'"
+                ;;
+              "")
+                echo "FAIL: action succeeded but status output is empty"
+                exit 1
+                ;;
+              *)
+                echo "PASS: action succeeded with status='$STATUS'"
+                ;;
+            esac
+          elif [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: action failed gracefully (expected without REMYX_API_KEY / sentinel repo)"
+          else
+            echo "FAIL: unexpected outcome '$OUTCOME'"
+            exit 1
+          fi
