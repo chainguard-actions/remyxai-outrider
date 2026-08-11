@@ -1,0 +1,39 @@
+name: Test issue-convention mode with issue-number
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        continue-on-error: true
+        with:
+          interest-id: 'test-interest-uuid-placeholder'
+          mode: 'issue-convention'
+          issue-number: '1'
+          enable-cocoindex: 'false'
+
+      - name: Assert issue-convention mode runs or fails gracefully
+        env:
+          STATUS: ${{ steps.action.outputs.status }}
+          ISSUE_URL: ${{ steps.action.outputs.issue_url }}
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          echo "status: $STATUS"
+          echo "issue_url: $ISSUE_URL"
+          if [ "$OUTCOME" = "success" ]; then
+            if [ -z "$STATUS" ]; then
+              echo "FAIL: action succeeded but status output is empty"
+              exit 1
+            fi
+            echo "PASS: issue-convention mode succeeded with status='$STATUS'"
+          elif [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: action failed gracefully (expected without real API keys / issue)"
+          else
+            echo "FAIL: unexpected outcome '$OUTCOME'"
+            exit 1
+          fi

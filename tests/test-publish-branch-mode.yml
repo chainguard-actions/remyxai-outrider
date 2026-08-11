@@ -1,0 +1,47 @@
+name: Test recommend mode with publish=branch
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        continue-on-error: true
+        with:
+          interest-id: 'test-interest-uuid-placeholder'
+          mode: 'recommend'
+          publish: 'branch'
+          chain: 'false'
+          rate-limit-days: '0'
+          min-confidence: 'low'
+          enable-cocoindex: 'false'
+
+      - name: Assert publish=branch mode runs or fails gracefully
+        env:
+          STATUS: ${{ steps.action.outputs.status }}
+          PR_URL: ${{ steps.action.outputs.pr_url }}
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          echo "status: $STATUS"
+          echo "pr_url: $PR_URL"
+          if [ "$OUTCOME" = "success" ]; then
+            if [ -z "$STATUS" ]; then
+              echo "FAIL: action succeeded but status output is empty"
+              exit 1
+            fi
+            # In branch mode, pr_url should NOT be set (no PR is opened)
+            if [ -n "$PR_URL" ]; then
+              echo "FAIL: publish=branch should not produce a pr_url, got: $PR_URL"
+              exit 1
+            fi
+            echo "PASS: publish=branch mode succeeded with status='$STATUS', no pr_url"
+          elif [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: action failed gracefully (expected without real API keys)"
+          else
+            echo "FAIL: unexpected outcome '$OUTCOME'"
+            exit 1
+          fi

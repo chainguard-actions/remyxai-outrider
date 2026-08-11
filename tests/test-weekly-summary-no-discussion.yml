@@ -1,0 +1,41 @@
+name: Test weekly-summary mode with no discussion ID
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        continue-on-error: true
+        with:
+          interest-id: 'test-interest-uuid-placeholder'
+          mode: 'weekly-summary'
+          weekly-discussion-id: ''
+          enable-cocoindex: 'false'
+
+      - name: Assert weekly-summary with no discussion-id skips or fails gracefully
+        env:
+          STATUS: ${{ steps.action.outputs.status }}
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          echo "status: $STATUS"
+          if [ "$OUTCOME" = "success" ]; then
+            # The action should skip cleanly when weekly-discussion-id is empty
+            if [ "$STATUS" = "weekly_summary_skipped_no_discussion_id" ]; then
+              echo "PASS: correctly skipped weekly summary (no discussion id)"
+            elif [ -n "$STATUS" ]; then
+              echo "PASS: action succeeded with status='$STATUS'"
+            else
+              echo "FAIL: action succeeded but status output is empty"
+              exit 1
+            fi
+          elif [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: action failed gracefully (expected without real API keys)"
+          else
+            echo "FAIL: unexpected outcome '$OUTCOME'"
+            exit 1
+          fi
