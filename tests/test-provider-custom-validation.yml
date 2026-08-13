@@ -1,0 +1,36 @@
+name: Test provider=custom validation (missing model-base-url causes clean error)
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        continue-on-error: true
+        with:
+          interest-id: 'test-interest-00000000-0000-0000-0000-000000000000'
+          mode: recommend
+          provider: custom
+          # model-base-url intentionally omitted — action should fail clean
+          rate-limit-days: '0'
+          chain: 'false'
+          enable-cocoindex: 'false'
+
+      - name: Assert action failed cleanly due to missing model-base-url for provider=custom
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          # The action MUST fail because provider=custom requires model-base-url
+          if [ "$OUTCOME" = "success" ]; then
+            echo "FAIL: expected action to fail due to missing model-base-url, but it succeeded"
+            exit 1
+          fi
+          if [ "$OUTCOME" = "skipped" ]; then
+            echo "FAIL: action step was unexpectedly skipped"
+            exit 1
+          fi
+          echo "PASS: action failed as expected when model-base-url is missing for provider=custom"

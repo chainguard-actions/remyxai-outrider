@@ -1,0 +1,44 @@
+name: Test weekly-summary mode (graceful failure without API key)
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        continue-on-error: true
+        with:
+          interest-id: 'test-interest-00000000-0000-0000-0000-000000000000'
+          mode: weekly-summary
+          weekly-discussion-id: ''
+          enable-cocoindex: 'false'
+
+      - name: Assert weekly-summary mode ran and produced a recognizable outcome
+        env:
+          STATUS: ${{ steps.action.outputs.status }}
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          echo "status: $STATUS"
+          if [ "$OUTCOME" = "skipped" ]; then
+            echo "FAIL: action step was unexpectedly skipped"
+            exit 1
+          fi
+          if [ "$OUTCOME" = "success" ]; then
+            case "$STATUS" in
+              weekly_summary_posted|\
+              weekly_summary_skipped_no_discussion_id|\
+              weekly_summary_failed|error)
+                echo "PASS: weekly-summary mode produced status '$STATUS'"
+                ;;
+              *)
+                echo "FAIL: unexpected status value for weekly-summary mode: '$STATUS'"
+                exit 1
+                ;;
+            esac
+          else
+            echo "PASS: action failed gracefully (no real REMYX_API_KEY / sentinel repo)"
+          fi
