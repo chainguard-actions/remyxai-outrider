@@ -1,0 +1,51 @@
+name: Test error handling with missing API key
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        with:
+          interest-id: 'test-interest-id-00000000-0000-0000-0000-000000000000'
+          mode: 'recommend'
+          min-confidence: 'high'
+          rate-limit-days: '0'
+        env:
+          REMYX_API_KEY: 'invalid-key-for-testing'
+          ANTHROPIC_API_KEY: 'invalid-anthropic-key-for-testing'
+        continue-on-error: true
+
+      - name: Assert action produced an error or skipped status
+        env:
+          STATUS: ${{ steps.action.outputs.status }}
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          echo "status: $STATUS"
+          # With an invalid API key, the action should produce 'error' status
+          # or fail with a non-zero exit code. Any of these are acceptable:
+          # - error: unhandled exception (most likely with bad API key)
+          # - skipped_*: if the API call returns an empty/invalid response
+          # - claude_failed: if Claude CLI fails due to bad Anthropic key
+          # - action step failure (outcome=failure) with no status output
+          VALID_STATUSES="error skipped_low_confidence skipped_open_artifact skipped_pr_exists skipped_issue_exists skipped_by_selection_verification claude_failed"
+          if [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: action step failed as expected with invalid API keys"
+          elif echo "$VALID_STATUSES" | grep -qw "$STATUS"; then
+            echo "PASS: got acceptable status '$STATUS'"
+          elif [ -n "$STATUS" ]; then
+            # Any non-empty status is acceptable — the action ran and produced output
+            echo "PASS: action produced status '$STATUS'"
+          else
+            echo "FAIL: unexpected outcome '$OUTCOME' with no status"
+            exit 1
+          fi

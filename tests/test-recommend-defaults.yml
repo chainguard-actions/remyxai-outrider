@@ -1,0 +1,72 @@
+name: Test recommend mode with default inputs
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        with:
+          interest-id: 'test-interest-id-00000000-0000-0000-0000-000000000000'
+          mode: 'recommend'
+          min-confidence: 'moderate'
+          draft-mode: 'always'
+          rate-limit-days: '7'
+          guardrails-allowlist: ''
+          test-integration-policy: 'strict'
+          lookback: 'week'
+          candidate-pool: '25'
+          claude-timeout: '900'
+          pin-arxiv: ''
+        env:
+          REMYX_API_KEY: 'invalid-key-for-testing'
+          ANTHROPIC_API_KEY: 'invalid-anthropic-key-for-testing'
+        continue-on-error: true
+
+      - name: Assert action ran and produced a status output or failed gracefully
+        env:
+          STATUS: ${{ steps.action.outputs.status }}
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          echo "status: $STATUS"
+          # With invalid API keys, the action should either:
+          # 1. Fail the step (outcome=failure) — acceptable
+          # 2. Produce an 'error' status — acceptable
+          # 3. Produce any skipped_* status — acceptable
+          # The key assertion is that the action DOES NOT crash the runner
+          # in an unexpected way (e.g. missing required input handling).
+          if [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: action failed gracefully with invalid API keys"
+          elif [ -n "$STATUS" ]; then
+            echo "PASS: action produced status '$STATUS'"
+          else
+            echo "FAIL: action produced no status and did not fail the step"
+            exit 1
+          fi
+
+      - name: Assert cost_usd output is present or empty (not garbage)
+        env:
+          COST: ${{ steps.action.outputs.cost_usd }}
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "cost_usd: '$COST'"
+          # cost_usd should be a number or empty string — never garbage text
+          if [ -z "$COST" ]; then
+            echo "PASS: cost_usd is empty (no Claude calls made)"
+          elif echo "$COST" | grep -qE '^[0-9]+(\.[0-9]+)?$'; then
+            echo "PASS: cost_usd is a valid number: $COST"
+          elif [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: action failed before setting cost_usd"
+          else
+            echo "FAIL: cost_usd has unexpected value: '$COST'"
+            exit 1
+          fi
