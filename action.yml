@@ -233,5 +233,6 @@ runs:
         # week / 10 in run.py too, so omitting them is safe.
         REMYX_RECOMMENDATION_PERIOD: ${{ inputs.lookback }}
         REMYX_RECOMMENDATION_LIMIT: ${{ inputs.candidate-pool }}
+        ACTION_PATH: ${{ github.action_path }}
       run: |
-        python "$GITHUB_ACTION_PATH/src/run.py"
+        python "$ACTION_PATH/src/run.py"
