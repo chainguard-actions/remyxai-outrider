@@ -1,4 +1,4 @@
-name: Test high confidence threshold
+name: Test basic usage (recommend mode)
 on:
   workflow_dispatch:
 jobs:
@@ -12,16 +12,12 @@ jobs:
         with:
           interest-id: 'test-interest-uuid-placeholder'
           mode: 'recommend'
-          min-confidence: 'high'
-          rate-limit-days: '0'
-          draft-mode: 'never'
-          test-integration-policy: 'off'
-          lookback: 'today'
-          candidate-pool: '5'
-          claude-timeout: '300'
+          min-confidence: 'moderate'
+          draft-mode: 'always'
+          rate-limit-days: '7'
         continue-on-error: true
 
-      - name: Assert status output is non-empty and valid
+      - name: Assert status output is a known valid value
         env:
           STATUS: ${{ steps.action.outputs.status }}
         run: |

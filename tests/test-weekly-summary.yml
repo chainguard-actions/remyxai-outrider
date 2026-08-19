@@ -1,9 +1,11 @@
-name: Test high confidence threshold
+name: Test weekly-summary mode
 on:
   workflow_dispatch:
 jobs:
   test:
     runs-on: ubuntu-latest
+    permissions:
+      discussions: write
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
@@ -11,22 +13,19 @@ jobs:
         uses: .
         with:
           interest-id: 'test-interest-uuid-placeholder'
-          mode: 'recommend'
-          min-confidence: 'high'
-          rate-limit-days: '0'
-          draft-mode: 'never'
-          test-integration-policy: 'off'
-          lookback: 'today'
-          candidate-pool: '5'
-          claude-timeout: '300'
+          mode: 'weekly-summary'
+          weekly-discussion-id: ''
         continue-on-error: true
 
-      - name: Assert status output is non-empty and valid
+      - name: Assert status is a valid weekly-summary status
         env:
           STATUS: ${{ steps.action.outputs.status }}
         run: |
           echo "status: $STATUS"
-          VALID_STATUSES="pr_opened pr_opened_draft issue_opened skipped_low_confidence skipped_rate_limit skipped_pr_exists skipped_issue_exists skipped_test_failure claude_failed rejected_path_violations error"
+          # When weekly-discussion-id is empty, the action should skip cleanly
+          # with "weekly_summary_skipped_no_discussion_id", or fail with
+          # "weekly_summary_failed" / "error" if API keys are missing.
+          VALID_STATUSES="weekly_summary_posted weekly_summary_skipped_no_discussion_id weekly_summary_failed error"
           if [ -z "$STATUS" ]; then
             echo "FAIL: status output is empty"
             exit 1
@@ -39,7 +38,7 @@ jobs:
             fi
           done
           if [ "$FOUND" = "0" ]; then
-            echo "FAIL: status '$STATUS' is not a recognized valid status"
+            echo "FAIL: status '$STATUS' is not a recognized weekly-summary status"
             exit 1
           fi
-          echo "PASS: status='$STATUS' is a valid status value"
+          echo "PASS: status='$STATUS' is a valid weekly-summary status"

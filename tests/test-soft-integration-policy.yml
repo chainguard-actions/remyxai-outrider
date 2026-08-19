@@ -1,4 +1,4 @@
-name: Test high confidence threshold
+name: Test soft test-integration-policy with pin-arxiv
 on:
   workflow_dispatch:
 jobs:
@@ -12,12 +12,13 @@ jobs:
         with:
           interest-id: 'test-interest-uuid-placeholder'
           mode: 'recommend'
-          min-confidence: 'high'
+          min-confidence: 'low'
+          draft-mode: 'on_test_failure'
           rate-limit-days: '0'
-          draft-mode: 'never'
-          test-integration-policy: 'off'
-          lookback: 'today'
-          candidate-pool: '5'
+          test-integration-policy: 'soft'
+          lookback: 'month'
+          candidate-pool: '10'
+          pin-arxiv: '2401.00001'
           claude-timeout: '300'
         continue-on-error: true
 
@@ -43,3 +44,26 @@ jobs:
             exit 1
           fi
           echo "PASS: status='$STATUS' is a valid status value"
+
+      - name: Assert tier output is valid when set
+        env:
+          TIER: ${{ steps.action.outputs.tier }}
+        run: |
+          echo "tier: $TIER"
+          if [ -n "$TIER" ]; then
+            VALID_TIERS="high moderate low noise"
+            FOUND=0
+            for t in $VALID_TIERS; do
+              if [ "$TIER" = "$t" ]; then
+                FOUND=1
+                break
+              fi
+            done
+            if [ "$FOUND" = "0" ]; then
+              echo "FAIL: tier '$TIER' is not a recognized valid tier"
+              exit 1
+            fi
+            echo "PASS: tier='$TIER' is a valid tier value"
+          else
+            echo "PASS: tier is empty (no recommendation made)"
+          fi
