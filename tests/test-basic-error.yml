@@ -1,4 +1,4 @@
-name: Test weekly-summary mode with no discussion ID
+name: Test basic invocation without API key
 on:
   workflow_dispatch:
 jobs:
@@ -12,25 +12,22 @@ jobs:
         continue-on-error: true
         with:
           interest-id: 'test-interest-00000000-0000-0000-0000-000000000000'
-          mode: 'weekly-summary'
-          weekly-discussion-id: ''
+          mode: 'recommend'
+          min-confidence: 'high'
+          rate-limit-days: '0'
 
-      - name: Assert weekly-summary with no discussion-id is skipped cleanly
+      - name: Assert status is set and reflects an error or skip (no API key)
         env:
           STATUS: ${{ steps.action.outputs.status }}
           OUTCOME: ${{ steps.action.outcome }}
         run: |
           echo "outcome: $OUTCOME"
           echo "status: $STATUS"
-          # When weekly-discussion-id is empty the action should skip cleanly.
-          # Acceptable statuses: weekly_summary_skipped_no_discussion_id, error,
-          # or the step may fail (outcome=failure) — all indicate no artifact was created.
-          if [ "$STATUS" = "weekly_summary_posted" ]; then
-            echo "FAIL: action unexpectedly posted a weekly summary with no discussion ID"
-            exit 1
-          fi
+          # Without REMYX_API_KEY the action should either set status=error
+          # or fail the step. Either is acceptable — what we must NOT see is
+          # a successful pr_opened / issue_opened with a fake interest-id.
           if [ "$STATUS" = "pr_opened" ] || [ "$STATUS" = "pr_opened_draft" ] || [ "$STATUS" = "issue_opened" ]; then
-            echo "FAIL: action unexpectedly created a PR/Issue in weekly-summary mode"
+            echo "FAIL: action unexpectedly succeeded with a fake interest-id and no API key"
             exit 1
           fi
           echo "PASS: status='$STATUS' outcome='$OUTCOME' — no spurious artifact created"

@@ -1,0 +1,44 @@
+name: Test pin-arxiv and rate-limit-days=0 inputs
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        continue-on-error: true
+        with:
+          interest-id: 'test-interest-00000000-0000-0000-0000-000000000000'
+          mode: 'recommend'
+          pin-arxiv: '2301.00001'
+          rate-limit-days: '0'
+          min-confidence: 'low'
+          draft-mode: 'never'
+          test-integration-policy: 'off'
+          lookback: 'today'
+          candidate-pool: '1'
+          claude-timeout: '60'
+
+      - name: Assert no spurious artifact created with fake credentials and pinned arxiv
+        env:
+          STATUS: ${{ steps.action.outputs.status }}
+          OUTCOME: ${{ steps.action.outcome }}
+          ARXIV: ${{ steps.action.outputs.arxiv }}
+        run: |
+          echo "outcome: $OUTCOME"
+          echo "status: $STATUS"
+          echo "arxiv: $ARXIV"
+          # Without a real REMYX_API_KEY the action cannot fetch recommendations.
+          # It must not open a real PR or Issue.
+          if [ "$STATUS" = "pr_opened" ] || [ "$STATUS" = "pr_opened_draft" ]; then
+            echo "FAIL: action opened a PR with fake credentials"
+            exit 1
+          fi
+          if [ "$STATUS" = "issue_opened" ]; then
+            echo "FAIL: action opened an Issue with fake credentials"
+            exit 1
+          fi
+          echo "PASS: no spurious artifact created (status='$STATUS', outcome='$OUTCOME')"
