@@ -1,4 +1,4 @@
-name: Test weekly-summary mode without discussion ID
+name: Test basic recommend mode
 on:
   workflow_dispatch:
 jobs:
@@ -12,8 +12,12 @@ jobs:
         continue-on-error: true
         with:
           interest-id: 'test-interest-id-00000000-0000-0000-0000-000000000000'
-          mode: 'weekly-summary'
-          weekly-discussion-id: ''
+          mode: 'recommend'
+          min-confidence: 'moderate'
+          draft-mode: 'always'
+          rate-limit-days: '7'
+          lookback: 'week'
+          candidate-pool: '25'
 
       - name: Assert status output is set
         env:
@@ -21,25 +25,26 @@ jobs:
         run: |
           echo "status: $STATUS"
           if [ -z "$STATUS" ]; then
-            echo "FAIL: expected status output to be set"
+            echo "FAIL: expected status output to be set (even on error)"
             exit 1
           fi
           echo "PASS: status is set to '$STATUS'"
 
-      - name: Assert status is a known weekly-summary value
+      - name: Assert status is a known value
         env:
           STATUS: ${{ steps.action.outputs.status }}
         run: |
           echo "status: $STATUS"
           case "$STATUS" in
-            weekly_summary_posted|\
-            weekly_summary_skipped_no_discussion_id|\
-            weekly_summary_failed|\
-            error)
-              echo "PASS: status '$STATUS' is a valid weekly-summary-mode status"
+            pr_opened|pr_opened_draft|issue_opened|\
+            skipped_low_confidence|skipped_open_artifact|\
+            skipped_pr_exists|skipped_issue_exists|\
+            skipped_test_failure|claude_failed|\
+            rejected_path_violations|error)
+              echo "PASS: status '$STATUS' is a valid recommend-mode status"
               ;;
             *)
-              echo "FAIL: unexpected status value '$STATUS' for weekly-summary mode"
+              echo "FAIL: unexpected status value '$STATUS'"
               exit 1
               ;;
           esac

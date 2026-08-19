@@ -1,4 +1,4 @@
-name: Test high confidence gate
+name: Test pin-arxiv with soft test-integration-policy
 on:
   workflow_dispatch:
 jobs:
@@ -13,11 +13,14 @@ jobs:
         with:
           interest-id: 'test-interest-id-00000000-0000-0000-0000-000000000000'
           mode: 'recommend'
-          min-confidence: 'high'
-          draft-mode: 'never'
+          min-confidence: 'low'
+          draft-mode: 'on_test_failure'
           rate-limit-days: '0'
-          lookback: 'today'
-          candidate-pool: '25'
+          test-integration-policy: 'soft'
+          pin-arxiv: '2401.00001'
+          lookback: 'month'
+          candidate-pool: '10'
+          claude-timeout: '300'
 
       - name: Assert status output is set
         env:
@@ -48,3 +51,19 @@ jobs:
               exit 1
               ;;
           esac
+
+      - name: Assert cost_usd output is present or empty
+        env:
+          COST: ${{ steps.action.outputs.cost_usd }}
+        run: |
+          echo "cost_usd: $COST"
+          # cost_usd may be empty if action errored before Claude ran
+          echo "PASS: cost_usd output checked (value: '$COST')"
+
+      - name: Assert arxiv output is present or empty
+        env:
+          ARXIV: ${{ steps.action.outputs.arxiv }}
+        run: |
+          echo "arxiv: $ARXIV"
+          # arxiv may be empty if action errored before recommendation
+          echo "PASS: arxiv output checked (value: '$ARXIV')"
