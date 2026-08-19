@@ -1,4 +1,4 @@
-name: Test weekly-summary mode with no discussion ID
+name: Test basic usage (no API key → error status)
 on:
   workflow_dispatch:
 jobs:
@@ -11,11 +11,13 @@ jobs:
         uses: .
         with:
           interest-id: 'test-interest-id-00000000-0000-0000-0000-000000000000'
-          mode: 'weekly-summary'
-          weekly-discussion-id: ''
+          mode: 'recommend'
+          min-confidence: 'moderate'
+          draft-mode: 'always'
+          rate-limit-days: '0'
         continue-on-error: true
 
-      - name: Assert status is weekly_summary_skipped_no_discussion_id or error
+      - name: Assert status output is set and is a known value
         env:
           STATUS: ${{ steps.action.outputs.status }}
         run: |
@@ -25,14 +27,15 @@ jobs:
             exit 1
           fi
           case "$STATUS" in
-            weekly_summary_skipped_no_discussion_id|\
-            weekly_summary_posted|\
-            weekly_summary_failed|\
-            error)
-              echo "PASS: status='$STATUS' is a known weekly-summary-mode value"
+            pr_opened|pr_opened_draft|issue_opened|\
+            skipped_low_confidence|skipped_open_artifact|\
+            skipped_issues_disabled|skipped_pr_exists|\
+            skipped_issue_exists|skipped_test_failure|\
+            claude_failed|rejected_path_violations|error)
+              echo "PASS: status='$STATUS' is a known recommend-mode value"
               ;;
             *)
-              echo "FAIL: unexpected status value for weekly-summary mode: $STATUS"
+              echo "FAIL: unexpected status value: $STATUS"
               exit 1
               ;;
           esac

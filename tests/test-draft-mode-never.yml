@@ -1,4 +1,4 @@
-name: Test high confidence gate
+name: Test draft-mode never with rate-limit disabled
 on:
   workflow_dispatch:
 jobs:
@@ -12,9 +12,12 @@ jobs:
         with:
           interest-id: 'test-interest-id-00000000-0000-0000-0000-000000000000'
           mode: 'recommend'
-          min-confidence: 'high'
-          draft-mode: 'always'
+          min-confidence: 'low'
+          draft-mode: 'never'
           rate-limit-days: '0'
+          lookback: 'today'
+          candidate-pool: '5'
+          claude-timeout: '300'
         continue-on-error: true
 
       - name: Assert status output is set and is a known value
@@ -40,21 +43,18 @@ jobs:
               ;;
           esac
 
-      - name: Assert tier output (if set) is a known tier value
+      - name: Assert cost_usd output (if set) is numeric
         env:
-          TIER: ${{ steps.action.outputs.tier }}
+          COST: ${{ steps.action.outputs.cost_usd }}
         run: |
-          echo "tier: $TIER"
-          if [ -z "$TIER" ]; then
-            echo "INFO: tier output is empty (acceptable when action errored early)"
+          echo "cost_usd: $COST"
+          if [ -z "$COST" ]; then
+            echo "INFO: cost_usd is empty (acceptable when action errored early)"
           else
-            case "$TIER" in
-              high|moderate|low|noise)
-                echo "PASS: tier='$TIER' is a known value"
-                ;;
-              *)
-                echo "FAIL: unexpected tier value: $TIER"
-                exit 1
-                ;;
-            esac
+            if echo "$COST" | grep -qE '^[0-9]+(\.[0-9]+)?$'; then
+              echo "PASS: cost_usd='$COST' is numeric"
+            else
+              echo "FAIL: cost_usd='$COST' is not a valid numeric value"
+              exit 1
+            fi
           fi
