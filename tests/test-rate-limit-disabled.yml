@@ -1,0 +1,50 @@
+name: Test rate-limit-days disabled (0)
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        with:
+          interest-id: 'test-interest-id-00000000-0000-0000-0000-000000000000'
+          mode: 'recommend'
+          min-confidence: 'high'
+          draft-mode: 'never'
+          rate-limit-days: '0'
+          guardrails-allowlist: '*.ts,*.js'
+          test-integration-policy: 'soft'
+          lookback: 'today'
+          candidate-pool: '5'
+          claude-timeout: '60'
+          pin-arxiv: ''
+        env:
+          REMYX_API_KEY: 'fake-key-for-test'
+        continue-on-error: true
+
+      - name: Assert status output is set and is a known value
+        env:
+          STATUS: ${{ steps.action.outputs.status }}
+        run: |
+          echo "status: $STATUS"
+          if [ -z "$STATUS" ]; then
+            echo "FAIL: status output is empty"
+            exit 1
+          fi
+          case "$STATUS" in
+            pr_opened|pr_opened_draft|issue_opened|\
+            skipped_low_confidence|skipped_open_artifact|\
+            skipped_issues_disabled|skipped_pr_exists|\
+            skipped_issue_exists|skipped_test_failure|\
+            claude_failed|rejected_path_violations|\
+            aborted_secret_in_payload|error)
+              echo "PASS: status='$STATUS' is a known recommend-mode value"
+              ;;
+            *)
+              echo "FAIL: status='$STATUS' is not a recognized recommend-mode value"
+              exit 1
+              ;;
+          esac
