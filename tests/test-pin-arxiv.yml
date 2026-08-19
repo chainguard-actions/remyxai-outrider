@@ -1,4 +1,4 @@
-name: Test pin-arxiv input skips LLM selection
+name: Test pin-arxiv and off integration policy
 on:
   workflow_dispatch:
 jobs:
@@ -10,38 +10,35 @@ jobs:
       - id: action
         uses: .
         with:
-          interest-id: 'test-interest-id-00000000-0000-0000-0000-000000000000'
-          pin-arxiv: '2301.00001'
+          interest-id: 'test-interest-00000000-0000-0000-0000-000000000003'
+          min-confidence: 'low'
+          draft-mode: 'always'
           rate-limit-days: '0'
-          claude-timeout: '60'
+          test-integration-policy: 'off'
+          pin-arxiv: '2301.00001'
+          lookback: 'month'
+          candidate-pool: '25'
         continue-on-error: true
 
-      - name: Assert status output is set
+      - name: Assert status output is set and recognized
         env:
           STATUS: ${{ steps.action.outputs.status }}
         run: |
           echo "status: $STATUS"
+          VALID_STATUSES="pr_opened pr_opened_draft issue_opened skipped_low_confidence skipped_rate_limit skipped_pr_exists skipped_issue_exists skipped_test_failure claude_failed rejected_path_violations error"
           if [ -z "$STATUS" ]; then
-            echo "FAIL: expected status output to be set (even on error)"
+            echo "FAIL: status output is empty"
             exit 1
           fi
-          echo "PASS: status=$STATUS"
-
-      - name: Assert status is a known value
-        env:
-          STATUS: ${{ steps.action.outputs.status }}
-        run: |
-          echo "status: $STATUS"
-          case "$STATUS" in
-            pr_opened|pr_opened_draft|issue_opened|\
-            skipped_low_confidence|skipped_rate_limit|\
-            skipped_pr_exists|skipped_issue_exists|\
-            skipped_test_failure|claude_failed|\
-            rejected_path_violations|error)
-              echo "PASS: status '$STATUS' is a known value"
-              ;;
-            *)
-              echo "FAIL: status '$STATUS' is not a recognized output value"
-              exit 1
-              ;;
-          esac
+          FOUND=0
+          for s in $VALID_STATUSES; do
+            if [ "$STATUS" = "$s" ]; then
+              FOUND=1
+              break
+            fi
+          done
+          if [ "$FOUND" = "0" ]; then
+            echo "FAIL: status '$STATUS' is not a recognized value"
+            exit 1
+          fi
+          echo "PASS: status='$STATUS' is a recognized value"

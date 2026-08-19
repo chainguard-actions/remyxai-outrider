@@ -1,4 +1,4 @@
-name: Test basic invocation
+name: Test soft test-integration-policy with guardrails allowlist
 on:
   workflow_dispatch:
 jobs:
@@ -10,13 +10,18 @@ jobs:
       - id: action
         uses: .
         with:
-          interest-id: 'test-interest-00000000-0000-0000-0000-000000000000'
-          min-confidence: 'moderate'
-          draft-mode: 'always'
+          interest-id: 'test-interest-00000000-0000-0000-0000-000000000002'
+          min-confidence: 'low'
+          draft-mode: 'on_test_failure'
           rate-limit-days: '0'
+          test-integration-policy: 'soft'
+          guardrails-allowlist: '*.ts,*.js'
+          lookback: 'week'
+          candidate-pool: '10'
+          claude-timeout: '300'
         continue-on-error: true
 
-      - name: Assert status output is a recognized value
+      - name: Assert status output is set and recognized
         env:
           STATUS: ${{ steps.action.outputs.status }}
         run: |

@@ -1,4 +1,4 @@
-name: Test basic invocation
+name: Test high confidence tier gate
 on:
   workflow_dispatch:
 jobs:
@@ -10,13 +10,15 @@ jobs:
       - id: action
         uses: .
         with:
-          interest-id: 'test-interest-00000000-0000-0000-0000-000000000000'
-          min-confidence: 'moderate'
-          draft-mode: 'always'
+          interest-id: 'test-interest-00000000-0000-0000-0000-000000000001'
+          min-confidence: 'high'
+          draft-mode: 'never'
           rate-limit-days: '0'
+          lookback: 'today'
+          candidate-pool: '5'
         continue-on-error: true
 
-      - name: Assert status output is a recognized value
+      - name: Assert status output is set and recognized
         env:
           STATUS: ${{ steps.action.outputs.status }}
         run: |
