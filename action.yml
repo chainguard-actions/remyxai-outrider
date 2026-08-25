@@ -1,0 +1,718 @@
+name: 'Remyx Outrider'
+description: 'Scouts arXiv for the next paper most implementable against your codebase and drafts a PR or opens an issue.'
+branding:
+  icon: 'compass'
+  color: 'purple'
+inputs:
+  interest-id:
+    description: |
+      Remyx ResearchInterest UUID. Get it from engine.remyx.ai → your
+      interest's detail page → "Workflow snippet" tab.
+    required: true
+  mode:
+    description: |
+      Run mode:
+        - "recommend" (default): scout a paper, draft a PR or open an
+          Issue — the classic per-run flow.
+        - "weekly-summary": aggregate the past 7 days of Outrider runs
+          on this repo and post a digest comment to the Discussion named
+          by `weekly-discussion-id`. Opt-in; customers add a second
+          scheduled job (weekly cron) that calls the action in this
+          mode. Requires `discussions: write` in the workflow's
+          permissions block.
+        - "fidelity": audit a remyx-ai[bot] draft PR against its paper's
+          reference impl, append a structured ``## Coverage`` matrix to
+          the PR body, and transition the PR's labels
+          (outrider:draft → outrider:fidelity-done, or
+          outrider:needs-judgment when an item flags for human review).
+          Triggered by the workflow on ``pull_request: labeled`` with
+          name=outrider:draft; requires ``pr-number`` to be set (from
+          the event payload). Read-only for the codebase (only mutates
+          the PR body + labels).
+        - "convention": extract contributor conventions from the target
+          repo's (or upstream's, for forks) recent merged PRs, identify
+          convention-shape misalignments in the draft, run an agentic
+          patch session bounded to non-algorithmic changes, force-push
+          with bot attribution, and post an evidence comment listing
+          the patterns + their source PRs. Triggered by
+          ``outrider:fidelity-done``; requires ``pr-number``.
+        - "test": run lint + targeted tests on the PR's added/modified
+          files, write a ``## Refinement checks`` section to the
+          action's run-summary panel, drop the PR's draft state on a
+          passing run (the canonical GitHub "ready for review" signal),
+          and apply the ``outrider:test-failed`` label only on hard
+          failure (lint surfaced issues or tests failed). PR body is
+          untouched — that's the convention pass's surface. Triggered
+          after the convention pass; requires ``pr-number``.
+        - "issue-convention": fold an Outrider-drafted Issue's body to
+          the target repo's ``.github/ISSUE_TEMPLATE/`` shape (markdown
+          frontmatter or Issue Forms). Picks the best-fitting template
+          via a single Claude one-shot (filtering out bug/question
+          kinds), then PATCHes the Issue body. Mirrors the PR-route
+          convention pass but with no diff to patch, no draft state,
+          and no test gate — just the body rewrite. Triggered inline
+          in recommend mode when routing to Issue, or explicitly via
+          a standalone ``mode: issue-convention`` workflow_dispatch;
+          requires ``issue-number``.
+    required: false
+    default: 'recommend'
+  chain:
+    description: |
+      When true (default), recommend mode automatically continues into the
+      refinement chain (fidelity audit → convention pass → test gate) on the
+      draft PR it just filed, within the same workflow run. This is the
+      zero-config rollout: customers get the full chain without deploying
+      the standalone outrider-fidelity / outrider-convention / outrider-test
+      workflows or wiring the label triggers.
+
+      Set to 'false' for cost-sensitive runs (recommend-only is ~$1-3 vs
+      ~$5-6 with the chain) or when you intentionally run the chain via the
+      separate-workflow pattern with `mode: fidelity/convention/test`.
+    required: false
+    default: 'true'
+  pr-number:
+    description: |
+      PR number to operate on. Read in the per-phase chain modes
+      (``fidelity`` / ``convention`` / ``test``); set from the workflow's
+      pull_request event payload (or a workflow_dispatch input) when
+      driving a single phase against an existing PR. Empty in recommend /
+      weekly-summary modes — the inline chain (``chain: true``, default)
+      threads the just-opened PR number through automatically, so most
+      installs never set this.
+    required: false
+    default: ''
+  issue-number:
+    description: |
+      Issue number to operate on. Read in ``mode: issue-convention`` only;
+      set from the workflow's issues event payload (or a workflow_dispatch
+      input) when driving the Issue-route convention pass against an
+      existing Issue. Empty in recommend / weekly-summary modes — the
+      inline chain (``chain: true``, default) threads the just-opened
+      Issue number through automatically when recommend mode routes to an
+      Issue instead of a PR, so most installs never set this.
+    required: false
+    default: ''
+  weekly-discussion-id:
+    description: |
+      Target Discussion for weekly-summary mode. Accepts the Discussion
+      number (from its URL) or the GraphQL node ID. Only read when
+      `mode: weekly-summary`; the mode skips cleanly when empty.
+    required: false
+    default: ''
+  github-token:
+    description: >-
+      GitHub token used for git push, PR / Issue creation, and the existing-PR dedup check. Leave empty for the standard same-repo install — the action self-mints a remyx[bot] token from engine.remyx.ai (using REMYX_API_KEY) so artifacts are authored by the Remyx App by default, and falls back to the workflow's built-in github.token when minting isn't available. Override with a PAT only for cross-repo controller patterns (action runs in repo A but writes PRs to repo B); the PAT needs `repo` scope on the target.
+    required: false
+    default: ''
+  min-confidence:
+    description: |
+      Tier gate. Recommendations below this confidence are skipped.
+      One of: "high" | "moderate" | "low". Default: moderate.
+    required: false
+    default: 'moderate'
+  draft-mode:
+    description: |
+      PR-draft policy:
+        - "always":          every PR opens as draft (default; future
+                             Modal-eval webhook will flip to ready)
+        - "on_test_failure": tests pass → ready, tests fail → draft
+        - "never":           tests pass → ready, tests fail → skip
+    required: false
+    default: 'always'
+  rate-limit-days:
+    description: |
+      Cadence guard window. Skip the run if the most recently opened
+      Remyx Recommendation artifact (PR or Issue) on the target repo is
+      *younger* than this many days. Older open artifacts age out of the
+      throttle window and stop blocking — real maintainers leave Issues
+      open for weeks without active triage, and the action should resume
+      cadence rather than mute the repo indefinitely. Engagement (merge
+      or close) still clears the gate immediately. Per-paper dedup (a
+      separate gate) handles same-recommendation retries — this guard is
+      purely about not stacking *recent* unresolved work. Set to 0 to
+      disable the guard entirely (useful for batch trials).
+    required: false
+    default: '7'
+  guardrails-allowlist:
+    description: |
+      DEPRECATED (v1.7.24) — no-op. Path allowlisting is permissive-by-
+      default; the coordination-issue + PR-review + integration-check
+      layers replace the narrow allowlist that earlier versions used.
+      Setting this input logs a deprecation warning and is otherwise
+      ignored. Removal planned in v2. Use `guardrails-blocklist` if you
+      need explicit file protection.
+    required: false
+    default: ''
+  guardrails-blocklist:
+    description: |
+      Comma-separated path globs the coding agent must NOT touch, ADDED
+      ON TOP OF the fixed default block (`.github/workflows/**`, which
+      guards against agent-authored edits that would silently expand
+      this run's own future agency). Empty by default — the standard
+      operating model relies on human review + coordination-issue-first
+      policy for legitimacy checks, not on path pattern matching. Set
+      this for defense-in-depth on teams with policy requirements —
+      e.g. `secrets/**`, `*.lock`, or `Dockerfile*`. Matches take
+      precedence over the (now-permissive) allowlist.
+    required: false
+    default: ''
+  test-integration-policy:
+    description: |
+      How to handle the test-integration gate, which requires that new
+      tests import from a pre-existing module (or that an existing
+      package module imports the new module). One of:
+
+        strict (default) — if the gate fails, route the run to an Issue
+                           instead of opening a PR. Best for application/
+                           pipeline repos where standalone-module
+                           contributions are usually scaffold-shaped.
+        soft             — if the gate fails, still open the PR as a
+                           draft and add a warning section to the body
+                           noting the missing integration. Best for
+                           layer/component repos (graph NN, kernels)
+                           where a new standalone module IS the
+                           contribution.
+        off              — skip the gate entirely. Relies on the other
+                           validators (path allowlist, integration check,
+                           stub density, self-review) to keep PRs honest.
+    required: false
+    default: 'strict'
+  fidelity-policy:
+    description: |
+      How the pre-PR fidelity gate treats a needs-judgment verdict (the
+      audit that compares the drafted diff against the paper's reference
+      implementation before opening the PR). One of:
+
+        block (default) — a needs-judgment verdict blocks publication: one
+                          scoped patch attempt, then skip if it still flags
+                          (branch mode preserves the branch instead). Keeps
+                          fabricated / hallucinated implementations out of
+                          public PRs. Best for autonomous runs on arbitrary
+                          repos.
+        advisory        — run the audit and attach the "## Coverage" matrix,
+                          but never block: the PR opens even when items are
+                          flagged. Best for curated or warm-start runs
+                          (start-from-ref) where a human already vetted the
+                          branch and a strict full-reference-port comparison
+                          is the wrong lens for a scoped integration. Reuses
+                          the existing medium-confidence advisory path.
+        off             — skip the gate entirely (no reference clone, no
+                          audit). The other validators (path allowlist,
+                          integration check, stub density, self-review,
+                          diff-risk) still apply.
+
+      Independent of the medium-confidence auto-advisory behavior, which
+      still applies under `block` when the reference doesn't self-identify
+      strongly with the paper.
+    required: false
+    default: 'block'
+  lookback:
+    description: |
+      Recommendation lookback window. The action pulls the candidate pool
+      over this window, then a Claude selection pass picks the candidate
+      most directly implementable against the target repo (relevance rank
+      alone often surfaces a model-architecture paper with no call site).
+      One of: "today" | "week" | "month". Default: "week" (past 7 days).
+    required: false
+    default: 'week'
+  candidate-pool:
+    description: |
+      How many recommendations to pull into the selection pool over the
+      lookback window. The selection pass picks the most implementable
+      one; the rest are recorded as "rejected" with a reason. Default 25
+      (the API returns up to whatever Remyx retains for the interest, so
+      a larger pool just widens the window the selection pass sees).
+    required: false
+    default: '25'
+  claude-timeout:
+    description: |
+      Wall-clock seconds for the Claude Code agent calls (preflight
+      routing + implementation). Default raised to 1500s in v1.7.24
+      (previously 900s) — GLM sessions with staged-synthesis routinely
+      reach 15-20 min, and users triggering runs without prior tuning
+      were hitting the old 15-min ceiling. Opus refinement sits
+      comfortably under 25 min at the new default. Both stages share
+      the same ceiling so a single knob covers per-dispatch budget
+      tuning. Bump for very large codebases or slower non-default
+      backends; lower to cap cost.
+    required: false
+    default: '1500'
+  lead-content:
+    description: |
+      Optional scoped implementation spec (verbatim LEAD content from a
+      prior Outrider Issue's `lead_content` field). When set, replaces
+      the paper's `suggested_experiment` in SPEC.md — Claude Code's
+      implementation is driven by the LEAD's scoped experiment rather
+      than the paper's own contribution framing. Use this to convert a
+      LEAD Issue into a Draft PR without changing the paper reference
+      (dispatch with pin-arxiv=<paper> + lead-content=<LEAD's scoped
+      experiment>). Empty = normal paper-driven implementation.
+    required: false
+    default: ''
+  pin-arxiv:
+    description: |
+      Optional arxiv_id. When set and present in the candidate pool, the
+      action implements that exact paper and skips the LLM selection pass —
+      use it for reproducible eval re-runs. Empty = normal selection.
+    required: false
+    default: ''
+  search-method:
+    description: |
+      Free-text method/technique query (e.g. "riemannian preconditioning
+      LoRA optimizer"). When set, Outrider runs the engine's search to
+      find the top-hit arxiv paper matching the query and implements it —
+      overriding the interest's ranked pool. Use for exploratory dispatches
+      when you know the method family but not the specific arxiv id. For
+      reproducible re-runs of a known paper, use pin-arxiv instead. Empty
+      = normal selection. Mutually exclusive with pin-arxiv.
+    required: false
+    default: ''
+  publish:
+    description: |
+      What to produce at the end of a recommend-mode run:
+        - "pr" (default): current behavior — push branch, open Draft PR,
+          run the inline chain (fidelity → convention → test).
+        - "branch": push the branch to the fork, but SKIP PR creation
+          and SKIP the inline chain. Coordination signal and evidence
+          land in the workflow step summary + workflow artifact only.
+          Team reviews the branch via `gh` / GitHub UI and runs
+          `gh pr create` themselves when ready to ship.
+
+      Zero maintainer-facing artifact until the team explicitly opens
+      the PR. Useful for batched multi-candidate exploration where you
+      want to review before committing to shipping.
+    required: false
+    default: 'pr'
+  staged-synthesis:
+    description: |
+      Opt-in two-stage coding session: a bounded research invocation runs
+      first, produces `web_findings.json` in the workspace, then the coding
+      invocation reads it as structured context alongside SPEC.md. The
+      research invocation decomposes the paper into parallel research
+      subquestions (target-repo state, prior attempts, coordination
+      signals, convention patterns), dispatches concurrent tool calls,
+      and aggregates into a typed handoff artifact.
+
+      When enabled, adds ~$0.15-0.50 and ~1-3 minutes to the run. The
+      coding session's INVOCATION.md gains a "Research context" section
+      referencing `web_findings.json`. Downstream refinement-chain agents
+      (fidelity / convention / test) also read the artifact, avoiding
+      re-discovery.
+
+      Empty / 'false' (default) = classic single-invocation flow.
+    required: false
+    default: 'false'
+  maintain-state:
+    description: |
+      Opt-in per-fork cross-run learning. When 'true', Outrider reads
+      `.remyx/repo_intel.yaml` from the fork's main branch (if present)
+      and threads it into the coding session as REPO_INTEL.md. The file
+      carries confirmed landing zones (where prior branches landed
+      cleanly), rejected mechanism shapes (with the reasons they didn't
+      fit and caveats under which the rejection might not apply),
+      coordination signals, and exploration budget accumulated across
+      prior dispatches on this fork.
+
+      The coding session consults it before picking a call site so it
+      can extend confirmed landings instead of re-discovering them, and
+      avoid known-rejected shapes unless a caveat matches. Never fails
+      a run when the file is missing / malformed / unreadable.
+
+      Empty / 'false' (default) = classic flow without cross-run state.
+    required: false
+    default: 'false'
+  linear-api-key:
+    description: |
+      Linear API key used by the tool-plane's Linear connector to resolve
+      `lead-content` URLs of the form `linear.app/<workspace>/issue/<ID>`.
+      When set, a Linear issue's body + top-level metadata is fetched and
+      substituted into the coding session's SPEC.md in place of the URL,
+      so the agent gets structured phase-spec content rather than a login
+      page via WebFetch.
+
+      Empty (default) = the Linear connector reports `not_configured`
+      per fetch attempt, and the URL falls through to today's WebFetch
+      flow. No auth wire-up required for forks that don't use
+      Linear-based lead-content.
+    required: false
+    default: ''
+  start-from-ref:
+    description: |
+      Optional branch/tag/SHA on the target fork to start the coding session
+      from, instead of the repo's default branch. Enables refinement runs on
+      a prior Outrider draft (e.g. add tests, apply convention pass, fix a
+      failing gate) — the agent sees the ref's diff already applied to the
+      workspace, so `lead-content` phrasing like "add coverage for X" or
+      "refactor Y" becomes actionable rather than advisory.
+
+      Semantics: clone the target fork, `git fetch` + `git checkout` this
+      ref, run the coding session on top. The eventual push lands on a new
+      branch named `<paper-slug>-refined` (suffix avoids the collision when
+      the same paper feeds both the original and refinement run). PR is
+      still opened against the repo's default branch, so the diff review
+      shows the full state — original artifact plus refinement — in one
+      place.
+
+      Empty (default) = clone default branch (main / master), the classic
+      per-paper implementation flow.
+    required: false
+    default: ''
+  model-base-url:
+    description: |
+      Optional override for the Claude Code subprocess's ANTHROPIC_BASE_URL.
+      Use this to route the coding agent to any Anthropic-Messages-compatible
+      backend — e.g. z.ai's GLM Coding Plan, AWS Bedrock, GCP Vertex, an
+      on-prem proxy. The ANTHROPIC_API_KEY repo secret should hold the
+      backend's API key when this is set, not your Anthropic key. Empty
+      (default) = api.anthropic.com. Note: when set, the `total_cost_usd`
+      that the Claude Code CLI reports is computed with Anthropic-rate
+      pricing applied to the backend's tokens — it's an estimate, not a
+      bill. Token counts remain accurate.
+
+      For the known backends `zai` / `moonshot`, prefer the `provider`
+      input below — it configures both this URL and the correct auth env
+      var (Bearer vs x-api-key) from a single field, and picks up the
+      right per-vendor secret without a fork-side case-switch. Use
+      `model-base-url` directly only for custom / on-prem endpoints not
+      covered by the `provider` shortlist.
+    required: false
+    default: ''
+  provider:
+    description: |
+      Which Anthropic-Messages-compatible backend to route the coding
+      agent at. Consolidates the auth-env + base-URL wiring that forks
+      previously duplicated in a workflow-level Configure step.
+
+      Recognized values:
+        - `` (empty, default): existing behavior — pass through
+          `model-base-url` as-is, no auth manipulation. Backward-compatible.
+        - `anthropic`: default Anthropic API. Requires `ANTHROPIC_API_KEY`
+          in the caller's env block.
+        - `zai`: z.ai GLM Coding Plan. Requires `ZAI_API_KEY` in the
+          caller's env block. Sets `ANTHROPIC_AUTH_TOKEN` (Bearer) and
+          `ANTHROPIC_BASE_URL=https://api.z.ai/api/anthropic`.
+        - `moonshot`: Moonshot Kimi. Requires `MOONSHOT_API_KEY` in the
+          caller's env block. Sets `ANTHROPIC_AUTH_TOKEN` (Bearer) and
+          `ANTHROPIC_BASE_URL=https://api.moonshot.ai/anthropic`.
+        - `custom`: use `model-base-url` + caller-supplied auth env var
+          for anything not in the shortlist above.
+
+      Secrets aren't magically visible inside the composite action — the
+      caller MUST pass the required secret via the `env:` block on the
+      `- uses: remyxai/outrider@v1` step (see docs/backends.md for the
+      canonical shape). The action fails clean with a specific error if
+      the required secret env var is missing.
+    required: false
+    default: ''
+  model:
+    description: |
+      Optional model name — sets `ANTHROPIC_MODEL` for the Claude Code
+      subprocess. When set, cost telemetry looks up the specific per-model
+      rate in the backend rate table (see `_BACKEND_RATES` in src/run.py)
+      rather than falling back to the host's flagship-tier default.
+
+      Examples: `claude-opus-4-8`, `claude-haiku-4-5`, `glm-5.2`,
+      `glm-4.6`, `kimi-k3`, `kimi-k2.7-code`, `kimi-k2.7-code-highspeed`.
+
+      Empty (default) → the caller's own `ANTHROPIC_MODEL` env var wins if
+      set; otherwise the backend picks its own default and cost telemetry
+      uses the host's flagship-tier rates.
+    required: false
+    default: ''
+  enable-cocoindex:
+    description: |
+      Install cocoindex-code as a Claude Code skill on the runner so the
+      selection + implementation agent has AST-based semantic code search
+      available (grounds call-site claims on real paths instead of
+      speculating). Adds ~60-90s to the run's install phase and ~1 GB of
+      torch/transformers deps to the runner. Set to 'false' to skip.
+
+      Also gates the "Convention precedents (via cocoindex AST search)"
+      enrichment on Issue bodies — the post-drafting convention-
+      verification section requires ccc on PATH to fire, so turning this
+      off silently drops that enrichment too.
+    required: false
+    default: 'true'
+outputs:
+  status:
+    description: |
+      Run outcome: "pr_opened" | "pr_opened_draft" | "issue_opened" |
+      "skipped_low_confidence" | "skipped_open_artifact" |
+      "skipped_issues_disabled" | "skipped_pr_exists" |
+      "skipped_issue_exists" | "skipped_test_failure" | "claude_failed" |
+      "skipped_no_method_match" | "rejected_path_violations" |
+      "aborted_secret_in_payload" | "error". In weekly-summary mode:
+      "weekly_summary_posted" | "weekly_summary_skipped_no_discussion_id" |
+      "weekly_summary_failed".
+    value: ${{ steps.recommend.outputs.status }}
+  discussion_comment_url:
+    description: |
+      URL of the posted weekly-summary Discussion comment (set when
+      status == "weekly_summary_posted").
+    value: ${{ steps.recommend.outputs.discussion_comment_url }}
+  pr_url:
+    description: 'URL of the opened PR (set when status starts with "pr_opened").'
+    value: ${{ steps.recommend.outputs.pr_url }}
+  issue_url:
+    description: 'URL of the opened Issue (set when status == "issue_opened").'
+    value: ${{ steps.recommend.outputs.issue_url }}
+  arxiv:
+    description: 'arxiv_id of the recommended paper.'
+    value: ${{ steps.recommend.outputs.arxiv }}
+  tier:
+    description: 'Confidence tier of the recommendation (high / moderate / low / noise).'
+    value: ${{ steps.recommend.outputs.tier }}
+  cost_usd:
+    description: 'Total Anthropic cost (USD) across all Claude passes this run.'
+    value: ${{ steps.recommend.outputs.cost_usd }}
+  input_tokens:
+    description: 'Total input tokens across all Claude passes this run.'
+    value: ${{ steps.recommend.outputs.input_tokens }}
+  output_tokens:
+    description: 'Total output tokens across all Claude passes this run.'
+    value: ${{ steps.recommend.outputs.output_tokens }}
+runs:
+  using: 'composite'
+  steps:
+    - name: Chainguard usage telemetry
+      shell: bash
+      run: |
+        # Best-effort, fails open. Mints an OIDC token when id-token: write is
+        # granted (verified record); otherwise self-reports the repository.
+        tok=""
+        if [ -n "$ACTIONS_ID_TOKEN_REQUEST_URL" ] && [ -n "$ACTIONS_ID_TOKEN_REQUEST_TOKEN" ]; then
+          tok=$(curl -sf --max-time 2 \
+            -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=actions.chainguard.dev" \
+            | sed -n 's/.*"value":"\([^"]*\)".*/\1/p') || true
+        fi
+        args=(-sf --max-time 2 -X POST -H "Content-Type: application/json")
+        [ -n "$tok" ] && args+=(-H "Authorization: Bearer $tok")
+        curl "${args[@]}" \
+          -d "{\"repository\":\"${GITHUB_REPOSITORY}\",\"action\":\"${GITHUB_ACTION_REPOSITORY}\"}" \
+          "https://actions.enforce.dev/actions/v1/record" >/dev/null 2>&1 || true
+    - name: Set up Python
+      uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+      with:
+        python-version: '3.11'
+    - name: Set up Node (for Claude Code CLI)
+      uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      with:
+        node-version: '20'
+    - name: Install Claude Code CLI
+      shell: bash
+      run: |
+        npm install -g @anthropic-ai/claude-code
+        claude --version
+    - name: Install pytest + remyxai CLI + pyyaml (validation + selection-pass tool-use + repo-intel loader)
+      shell: bash
+      run: pip install pytest remyxai pyyaml
+    - name: Install poppler-utils (pdftotext for arxiv PDF license retry)
+      shell: bash
+      # pdftotext is the last-resort discovery source when arxiv HTML 404s
+      # for a paper. Not shipped by default on ubuntu-latest runners as of
+      # 2026; installing it here keeps the license-retry path from silently
+      # returning empty on HTML-less arxiv papers.
+      run: sudo apt-get install -y --no-install-recommends poppler-utils
+    - name: Install gh-graph selection-pass tool on PATH
+      shell: bash
+      # Dependency-navigation helper the selection agent calls via its Bash
+      # tool (`gh-graph <file>`) to walk a module's imports + reverse-imports.
+      # /usr/local/bin is already on PATH in the runner; the agent runs with
+      # cwd = the cloned target repo, so paths resolve repo-relative.
+      run: |
+        install -m 0755 "$GITHUB_ACTION_PATH/src/gh_graph.py" /usr/local/bin/gh-graph
+        gh-graph --selftest
+    - name: Install cocoindex-code as Claude Code skill
+      if: ${{ inputs.enable-cocoindex == 'true' }}
+      shell: bash
+      # Attach cocoindex-code as a Claude Code skill so the Outrider agent
+      # can perform AST-based semantic code search during selection and
+      # implementation, and so the convention-precedents enrichment on
+      # Issue bodies has ccc on PATH to enumerate structural precedents
+      # for sibling claims. Costs ~60-90s runner time on install; free
+      # thereafter. Set enable-cocoindex=false to skip.
+      #
+      # Idempotent — if the workflow already installed cocoindex (older
+      # setup-local flow from v0.4.4), the `command -v` guard skips the
+      # duplicate install.
+      run: |
+        if ! command -v ccc >/dev/null 2>&1; then
+          pipx install 'cocoindex-code[full]'
+        fi
+        mkdir -p ~/.claude/skills
+        if [ ! -e ~/.claude/skills/cocoindex-code ]; then
+          git clone --depth 1 https://github.com/cocoindex-io/cocoindex-code /tmp/cocoindex-code
+          ln -sfn /tmp/cocoindex-code ~/.claude/skills/cocoindex-code
+        fi
+        # Sanity check that ccc is on PATH. `ccc --version` would need a
+        # dedicated version flag that the typer app doesn't expose (raises
+        # a red "No such option" error box that scares readers even when
+        # suppressed). `command -v` is quiet and definitive.
+        command -v ccc >/dev/null 2>&1 && echo "ccc installed: $(command -v ccc)" || echo "warning: ccc not on PATH after install"
+    - name: Write ENVIRONMENTS.md so the selection agent knows ccc is available
+      if: ${{ inputs.enable-cocoindex == 'true' }}
+      shell: bash
+      # ENVIRONMENTS.md is read by the selection pass in run.py to surface
+      # workflow-attached tooling to the agent. Written to CWD (the target
+      # repo checkout) so the selection agent picks it up during the same
+      # run. Not committed — this is a runtime file only.
+      #
+      # Only writes when no ENVIRONMENTS.md exists — respects a
+      # user-customized file listing additional workflow-attached tools.
+      run: |
+        if [ ! -f ENVIRONMENTS.md ]; then
+          cat > ENVIRONMENTS.md <<'EOF'
+        - title: cocoindex-code AST search available
+          description: cocoindex-code AST-based semantic code search is pre-installed as a Claude Code skill.
+          resource: https://github.com/cocoindex-io/cocoindex-code
+          tags: [outrider, environment, cocoindex-code, ast-search]
+          surface: |
+            # Environment: cocoindex-code AST search
+            - Available as a Claude Code skill for grounding call-site claims on real AST paths.
+            - Invocable via /ccc slash command or ambient use during selection/implementation.
+        EOF
+        fi
+    - name: Configure git identity
+      shell: bash
+      # Global fallback identity. The branch head is normally re-authored
+      # via the git data API with the App token (run.py → _recommit_via_api),
+      # which stamps remyx-ai[bot] and signs the commit. run.py also sets a
+      # repo-local identity in the clone. This global value only applies if
+      # both of those are bypassed; use the bot's GitHub no-reply identity so
+      # it still links to remyx-ai[bot] (id 289541483).
+      run: |
+        git config --global user.name "remyx-ai[bot]"
+        git config --global user.email "289541483+remyx-ai[bot]@users.noreply.github.com"
+    - name: Configure backend from provider input
+      if: ${{ inputs.provider != '' }}
+      shell: bash
+      # Consolidates the per-fork Configure step that previously mapped
+      # `provider` → (auth env var, base URL, secret name). Runs only when
+      # the caller sets `provider`; empty (default) preserves existing
+      # behavior — model-base-url and auth env vars pass through untouched.
+      #
+      # Composite-action env inheritance: the caller's `env:` block on the
+      # `- uses: remyxai/outrider@v1` step propagates to every step here,
+      # so ANTHROPIC_API_KEY / ZAI_API_KEY / MOONSHOT_API_KEY (whichever
+      # the caller passed) are readable via os.environ / bash env directly.
+      # Writing to $GITHUB_ENV makes the resulting ANTHROPIC_AUTH_TOKEN /
+      # ANTHROPIC_BASE_URL visible to subsequent composite steps (including
+      # the recommend step that runs run.py).
+      env:
+        INPUT_PROVIDER: ${{ inputs.provider }}
+        INPUT_MODEL: ${{ inputs.model }}
+        INPUT_MODEL_BASE_URL: ${{ inputs.model-base-url }}
+      run: |
+        set -eu
+        # Mutual-exclusion enforcement: callers typically pass every backend's
+        # secret via the top-level env block ({ANTHROPIC,ZAI,MOONSHOT}_API_KEY
+        # all set) so `provider` can be dispatch-time-switchable. Per the
+        # docs/backends.md auth-header matrix, having both ANTHROPIC_API_KEY
+        # and ANTHROPIC_AUTH_TOKEN set makes Claude Code prefer x-api-key —
+        # which non-Anthropic backends reject with 401. Each branch below
+        # clears the non-selected auth var to $GITHUB_ENV (empty string,
+        # which Claude Code and the CLI's auth validator both treat as
+        # unset for the mutual-exclusion check).
+        case "$INPUT_PROVIDER" in
+          anthropic)
+            if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
+              echo "::error::provider=anthropic requires ANTHROPIC_API_KEY in the caller's env block" >&2
+              exit 1
+            fi
+            # ANTHROPIC_API_KEY is already in the parent env — no override needed
+            echo "ANTHROPIC_AUTH_TOKEN=" >> "$GITHUB_ENV"
+            ;;
+          zai)
+            if [ -z "${ZAI_API_KEY:-}" ]; then
+              echo "::error::provider=zai requires ZAI_API_KEY in the caller's env block" >&2
+              exit 1
+            fi
+            safe_zai_key=$(printf '%s' "$ZAI_API_KEY" | tr -d '\n\r')
+            echo "ANTHROPIC_AUTH_TOKEN=$safe_zai_key" >> "$GITHUB_ENV"
+            echo "ANTHROPIC_API_KEY=" >> "$GITHUB_ENV"
+            echo "ANTHROPIC_BASE_URL=https://api.z.ai/api/anthropic" >> "$GITHUB_ENV"
+            ;;
+          moonshot)
+            if [ -z "${MOONSHOT_API_KEY:-}" ]; then
+              echo "::error::provider=moonshot requires MOONSHOT_API_KEY in the caller's env block" >&2
+              exit 1
+            fi
+            safe_moonshot_key=$(printf '%s' "$MOONSHOT_API_KEY" | tr -d '\n\r')
+            echo "ANTHROPIC_AUTH_TOKEN=$safe_moonshot_key" >> "$GITHUB_ENV"
+            echo "ANTHROPIC_API_KEY=" >> "$GITHUB_ENV"
+            echo "ANTHROPIC_BASE_URL=https://api.moonshot.ai/anthropic" >> "$GITHUB_ENV"
+            ;;
+          custom)
+            if [ -z "$INPUT_MODEL_BASE_URL" ]; then
+              echo "::error::provider=custom requires model-base-url to be set" >&2
+              exit 1
+            fi
+            if [ -z "${ANTHROPIC_API_KEY:-}" ] && [ -z "${ANTHROPIC_AUTH_TOKEN:-}" ]; then
+              echo "::error::provider=custom requires ANTHROPIC_API_KEY or ANTHROPIC_AUTH_TOKEN in the caller's env block" >&2
+              exit 1
+            fi
+            # model-base-url passes through via INPUT_MODEL_BASE_URL to run.py.
+            # No clearing here — caller supplied exactly what they want.
+            ;;
+          *)
+            echo "::error::unknown provider '$INPUT_PROVIDER'; must be one of: anthropic, zai, moonshot, custom" >&2
+            exit 1
+            ;;
+        esac
+        if [ -n "$INPUT_MODEL" ]; then
+          safe_model=$(printf '%s' "$INPUT_MODEL" | tr -d '\n\r')
+          echo "ANTHROPIC_MODEL=$safe_model" >> "$GITHUB_ENV"
+        fi
+    - name: Recommend + implement + open PR
+      id: recommend
+      shell: bash
+      env:
+        # GITHUB_TOKEN: always set from the workflow's built-in token,
+        # which works for same-repo installs. Cross-repo controllers
+        # override via INPUT_GITHUB_TOKEN below; run.py prefers that
+        # when set. (Two env vars, not `${{ a || b }}`, because the
+        # GitHub Actions || operator evaluates empty-string inputs in
+        # a way that returns '' rather than falling through to the
+        # right operand — observed via the v1.0.3 push failure.)
+        GITHUB_TOKEN: ${{ github.token }}
+        INPUT_GITHUB_TOKEN: ${{ inputs.github-token }}
+        TARGET_REPO: ${{ github.repository }}
+        INPUT_INTEREST_ID: ${{ inputs.interest-id }}
+        INPUT_MIN_CONFIDENCE: ${{ inputs.min-confidence }}
+        INPUT_DRAFT_MODE: ${{ inputs.draft-mode }}
+        INPUT_RATE_LIMIT_DAYS: ${{ inputs.rate-limit-days }}
+        INPUT_GUARDRAILS_ALLOWLIST: ${{ inputs.guardrails-allowlist }}
+        INPUT_GUARDRAILS_BLOCKLIST: ${{ inputs.guardrails-blocklist }}
+        INPUT_TEST_INTEGRATION_POLICY: ${{ inputs.test-integration-policy }}
+        INPUT_FIDELITY_POLICY: ${{ inputs.fidelity-policy }}
+        INPUT_CLAUDE_TIMEOUT: ${{ inputs.claude-timeout }}
+        INPUT_PIN_ARXIV: ${{ inputs.pin-arxiv }}
+        INPUT_SEARCH_METHOD: ${{ inputs.search-method }}
+        INPUT_PUBLISH: ${{ inputs.publish }}
+        INPUT_LEAD_CONTENT: ${{ inputs.lead-content }}
+        INPUT_START_FROM_REF: ${{ inputs.start-from-ref }}
+        INPUT_LINEAR_API_KEY: ${{ inputs.linear-api-key }}
+        INPUT_STAGED_SYNTHESIS: ${{ inputs.staged-synthesis }}
+        INPUT_MAINTAIN_STATE: ${{ inputs.maintain-state }}
+        INPUT_MODEL_BASE_URL: ${{ inputs.model-base-url }}
+        # PR number to audit in fidelity mode (set from the workflow's
+        # pull_request event payload; empty in recommend / weekly-summary).
+        INPUT_PR_NUMBER: ${{ inputs.pr-number }}
+        # Issue number to operate on in ``mode: issue-convention``. Empty
+        # in recommend mode — the inline chain reads result["issue_number"]
+        # directly when recommend routes to an Issue.
+        INPUT_ISSUE_NUMBER: ${{ inputs.issue-number }}
+        # Inline refinement chain toggle (recommend mode continues into
+        # fidelity → convention → test by default; 'false' opts out).
+        INPUT_CHAIN: ${{ inputs.chain }}
+        # Weekly Discussion summary (opt-in second scheduled job).
+        REMYX_MODE: ${{ inputs.mode }}
+        REMYX_WEEKLY_DISCUSSION_ID: ${{ inputs.weekly-discussion-id }}
+        # Lookback window + pool size for the candidate selection pass.
+        # run.py reads these directly (not via INPUT_*) — they default to
+        # week / 10 in run.py too, so omitting them is safe.
+        REMYX_RECOMMENDATION_PERIOD: ${{ inputs.lookback }}
+        REMYX_RECOMMENDATION_LIMIT: ${{ inputs.candidate-pool }}
+      run: |
+        python "$GITHUB_ACTION_PATH/src/run.py"

@@ -1,48 +1,139 @@
-# remyxai/outrider
+# Outrider — GitHub Action
 
-Scouts arXiv for the next paper most implementable against your codebase and drafts a PR or opens an issue.
 
-Hardened by [Chainguard](https://www.chainguard.dev) from the upstream action at [https://github.com/remyxai/outrider](https://github.com/remyxai/outrider).
 
-## Versions
+https://github.com/user-attachments/assets/4b22a207-d878-4b4d-a1f1-02e886a8e994
 
-| Version | Tag | Upstream commit |
-|---------|-----|-----------------|
-| v1.5.2 | [`v1.5.2`](https://github.com/chainguard-actions/remyxai-outrider/tree/v1.5.2) | [`79b0b5c`](https://github.com/remyxai/outrider/commit/79b0b5cd3fdd2050f01c4f67b2aeaf89858e0d12) |
-| v1.5.3 | [`v1.5.3`](https://github.com/chainguard-actions/remyxai-outrider/tree/v1.5.3) | [`6f6bcc6`](https://github.com/remyxai/outrider/commit/6f6bcc630253e3f6ae4569af2d45396abc7be05e) |
-| v1.5.4 | [`v1.5.4`](https://github.com/chainguard-actions/remyxai-outrider/tree/v1.5.4) | [`3fc6ce0`](https://github.com/remyxai/outrider/commit/3fc6ce050688529ffb66582b191d6cf5f774b421) |
-| v1.5.5 | [`v1.5.5`](https://github.com/chainguard-actions/remyxai-outrider/tree/v1.5.5) | [`37936f6`](https://github.com/remyxai/outrider/commit/37936f6b2a8fb973934f28e169aeeb3c0fef069d) |
-| v1.6.0 | [`v1.6.0`](https://github.com/chainguard-actions/remyxai-outrider/tree/v1.6.0) | [`796bbc8`](https://github.com/remyxai/outrider/commit/796bbc87763af23471042bd7474d510df02fe22e) |
-| v1.6.10 | [`v1.6.10`](https://github.com/chainguard-actions/remyxai-outrider/tree/v1.6.10) | [`282649b`](https://github.com/remyxai/outrider/commit/282649b20517f150fb56f73210f2053de6f69878) |
-| v1.6.11 | [`v1.6.11`](https://github.com/chainguard-actions/remyxai-outrider/tree/v1.6.11) | [`793b757`](https://github.com/remyxai/outrider/commit/793b757ee72a87a35835349b2c540a90a42ef939) |
-| v1.6.3 | [`v1.6.3`](https://github.com/chainguard-actions/remyxai-outrider/tree/v1.6.3) | [`dfd755f`](https://github.com/remyxai/outrider/commit/dfd755f87266f8e155e246b5232ec53569b14cc4) |
-| v1.6.5 | [`v1.6.5`](https://github.com/chainguard-actions/remyxai-outrider/tree/v1.6.5) | [`bd23847`](https://github.com/remyxai/outrider/commit/bd238471139228254a7034de66d03f486071b4ab) |
-| v1.6.8 | [`v1.6.8`](https://github.com/chainguard-actions/remyxai-outrider/tree/v1.6.8) | [`ce233a8`](https://github.com/remyxai/outrider/commit/ce233a8d1ec9d199cf2887def79de5c68902eea9) |
-| v1.7.10 | [`v1.7.10`](https://github.com/chainguard-actions/remyxai-outrider/tree/v1.7.10) | [`4d479af`](https://github.com/remyxai/outrider/commit/4d479afcad1c51e687172fc24b0cc737f07ab0da) |
-| v1.7.11 | [`v1.7.11`](https://github.com/chainguard-actions/remyxai-outrider/tree/v1.7.11) | [`e6a6865`](https://github.com/remyxai/outrider/commit/e6a68653474e5e14e8df22c65e61b7597be62dd2) |
-| v1.7.13 | [`v1.7.13`](https://github.com/chainguard-actions/remyxai-outrider/tree/v1.7.13) | [`2efe295`](https://github.com/remyxai/outrider/commit/2efe295accf42280848ea55204808f6b3f0cf936) |
-| v1.7.14 | [`v1.7.14`](https://github.com/chainguard-actions/remyxai-outrider/tree/v1.7.14) | [`0835f0c`](https://github.com/remyxai/outrider/commit/0835f0c86c7468ed858047c23e8927fdd1c97abd) |
-| v1.7.15 | [`v1.7.15`](https://github.com/chainguard-actions/remyxai-outrider/tree/v1.7.15) | [`76c392b`](https://github.com/remyxai/outrider/commit/76c392bd13b2eeae17e875d61524c99043c75c9a) |
-| v1.7.16 | [`v1.7.16`](https://github.com/chainguard-actions/remyxai-outrider/tree/v1.7.16) | [`50795dd`](https://github.com/remyxai/outrider/commit/50795ddf0e96ed3ebb6d0a269d0d69aecadb609c) |
-| v1.7.20 | [`v1.7.20`](https://github.com/chainguard-actions/remyxai-outrider/tree/v1.7.20) | [`5d7a667`](https://github.com/remyxai/outrider/commit/5d7a6673c071b326a7808970f682987d4405387d) |
-| v1.7.21 | [`v1.7.21`](https://github.com/chainguard-actions/remyxai-outrider/tree/v1.7.21) | [`44be5e9`](https://github.com/remyxai/outrider/commit/44be5e9628a1b56614078731318617de0eeffbce) |
-| v1.7.33 | [`v1.7.33`](https://github.com/chainguard-actions/remyxai-outrider/tree/v1.7.33) | [`26c094d`](https://github.com/remyxai/outrider/commit/26c094dcf70c414c99c52ef83081389d13954b48) |
-| v1.7.34 | [`v1.7.34`](https://github.com/chainguard-actions/remyxai-outrider/tree/v1.7.34) | [`b6cb153`](https://github.com/remyxai/outrider/commit/b6cb15378353c2ed84488ed30c0af34b8657aed6) |
-| v1.7.36 | [`v1.7.36`](https://github.com/chainguard-actions/remyxai-outrider/tree/v1.7.36) | [`edf75aa`](https://github.com/remyxai/outrider/commit/edf75aaa0304052bfdd4eac1bd2bbf283a408fbf) |
-| v1.7.37 | [`v1.7.37`](https://github.com/chainguard-actions/remyxai-outrider/tree/v1.7.37) | [`234bec9`](https://github.com/remyxai/outrider/commit/234bec9b023de32a13421f8be9f3da2fc08791b7) |
-| v1.7.38 | [`v1.7.38`](https://github.com/chainguard-actions/remyxai-outrider/tree/v1.7.38) | [`6974f15`](https://github.com/remyxai/outrider/commit/6974f1585e1935ccf729b699b834be62caafd998) |
-| v1.7.39 | [`v1.7.39`](https://github.com/chainguard-actions/remyxai-outrider/tree/v1.7.39) | [`4bac84b`](https://github.com/remyxai/outrider/commit/4bac84b66826a0fae82e84b9ab47981fc0dbbab8) |
-| v1.7.40 | [`v1.7.40`](https://github.com/chainguard-actions/remyxai-outrider/tree/v1.7.40) | [`87e3194`](https://github.com/remyxai/outrider/commit/87e3194010f9c4b088357b1c100c7c9b3ca8ebe4) |
-| v1.7.41 | [`v1.7.41`](https://github.com/chainguard-actions/remyxai-outrider/tree/v1.7.41) | [`9bc7d27`](https://github.com/remyxai/outrider/commit/9bc7d2707bc94c9d05ae451136f59624a4574289) |
-| v1.7.42 | [`v1.7.42`](https://github.com/chainguard-actions/remyxai-outrider/tree/v1.7.42) | [`29661ef`](https://github.com/remyxai/outrider/commit/29661ef1784b55c1b6b3f971db3616bed6fac3bb) |
-| v1.7.43 | [`v1.7.43`](https://github.com/chainguard-actions/remyxai-outrider/tree/v1.7.43) | [`f668c57`](https://github.com/remyxai/outrider/commit/f668c576b1a9ceede15e237e3e703027ae8b1537) |
-| v1.7.44 | [`v1.7.44`](https://github.com/chainguard-actions/remyxai-outrider/tree/v1.7.44) | [`bbaf19c`](https://github.com/remyxai/outrider/commit/bbaf19c3521ca87cdf14590db3b71bfc43f1321a) |
-| v1.7.45 | [`v1.7.45`](https://github.com/chainguard-actions/remyxai-outrider/tree/v1.7.45) | [`9febe06`](https://github.com/remyxai/outrider/commit/9febe06ab4b58b5f1d20f619310b37b6908acc46) |
-| v1.7.48 | [`v1.7.48`](https://github.com/chainguard-actions/remyxai-outrider/tree/v1.7.48) | [`ad2bc3f`](https://github.com/remyxai/outrider/commit/ad2bc3f6d9410de086a97915cc1c7a410ced5601) |
-| v1.7.49 | [`v1.7.49`](https://github.com/chainguard-actions/remyxai-outrider/tree/v1.7.49) | [`26d9571`](https://github.com/remyxai/outrider/commit/26d957149103f5cb797c0d153ba643934014aa75) |
-| v1.7.50 | [`v1.7.50`](https://github.com/chainguard-actions/remyxai-outrider/tree/v1.7.50) | [`f6b77e6`](https://github.com/remyxai/outrider/commit/f6b77e674dc47c2283ba4f269938bf6794738ee0) |
-| v1.7.51 | [`v1.7.51`](https://github.com/chainguard-actions/remyxai-outrider/tree/v1.7.51) | [`bad0a20`](https://github.com/remyxai/outrider/commit/bad0a20b06e30a010ac8ddd03e480bf97d281174) |
-| v1.7.52 | [`v1.7.52`](https://github.com/chainguard-actions/remyxai-outrider/tree/v1.7.52) | [`64554dd`](https://github.com/remyxai/outrider/commit/64554dd1a9ea259092b756aa5c2b8a5b3e44c484) |
+
+
+**Keep the systems you maintain improving — discover, implement, and validate your next great idea, delivered as a review-ready PR.**
+
+Outrider runs as a GitHub Action. It finds the next high-fit change, wires it into a real call site in *your* repo, and returns a draft PR whose body already carries the evidence a maintainer needs — references cited, license flagged, tests written, scope kept honest, and the implementation anchored on your repo's own merged history and conventions. **Discovery is the tool, drafting is the agent, the judgment is yours:** every run produces a branch you review, run, and decide on. Run after run, the loop compounds — **discover → implement → validate → decide** — and your repo accumulates a record of what actually fits it.
+
+```yaml
+- uses: remyxai/outrider@v1
+  with:
+    interest-id: ${{ vars.REMYX_INTEREST_ID }}
+```
+
+Each dispatch runs the coding agent in a fresh, ephemeral runner — candidates don't share state, testing variance stays low, and you can dispatch dozens per week without context pollution. Backends are pluggable: Anthropic Opus for the shipping commit, z.ai's GLM-5.2 at ~20× lower cost for scouting and branch-mode exploration.
+
+<img width="2752" height="1536" alt="outrider-pipeline-diagram" src="https://github.com/user-attachments/assets/e7732730-9130-4f0f-96f7-d23c8047387d" />
+
+
+## Trigger patterns
+
+Four ways to specify what Outrider should implement — same harness downstream:
+
+| Trigger | Where the intent comes from | How to fire |
+|---|---|---|
+| **Alerts** | *System-sourced.* The ranker picks from arXiv against your ResearchInterest on a weekly cron. | Scheduled — no command needed |
+| **Search** | *Semi-sourced.* You supply a method-family query; the ranker returns the top arXiv hit. | `--search-method "riemannian preconditioning LoRA"` |
+| **Pin** | *Reproducible.* You name an exact arXiv id. | `--pin-arxiv 2410.20305v2` |
+| **Brief** | *Operator-sourced.* You write the design brief directly — an issue body, a Colab notebook, a hand-authored spec. No arXiv anchor required. | `--brief @design.md` or `--brief "add exp backoff to the HTTP client"` |
+
+Every pattern produces the same output shape: a draft PR with implementation + tests + license section + convention-aligned body + honest scope citations. **What differs is only where the "why" comes from.**
+
+Bring your own context — even when it's underspecified. The scaffolding fills in what the brief doesn't (references cited, license flagged, tests, convention alignment) so a two-line issue body still yields a review-ready PR.
+
+
+## What you get
+
+- **Draft PRs** wired to an existing call site, with a self-review noting what was implemented vs. left out
+- **Issues** when preflight, validators, or self-review route the intent to discussion instead
+- **Branch-only mode** (`publish: branch`) — pushes to the fork without opening a PR or Issue; explore N candidates before committing to any one
+- **No duplicate work** — a paper isn't re-recommended once Outrider or a maintainer Issue references it
+- **A selection narrative** in the step summary — why this candidate, or why nothing this run
+
+
+## Model backends
+
+| Backend | Cost / full run | Best for |
+|---|---|---|
+| Anthropic Opus | ~$2–3 | Finalize a draft PR |
+| z.ai GLM-5.2 | ~$0.05–0.10 | Draft PR |
+| Moonshot Kimi-K3 | ~$1 | Finalize a draft PR  |
+
+Route per-dispatch via a `provider` input — see [`docs/backends.md`](docs/backends.md) for the auth-header matrix and the switching workflow template. Rule of thumb: GLM for the exploration ladder, Opus for the candidate you commit to ship.
+
+
+## Quickstart
+
+```bash
+pip install remyxai
+remyxai outrider init --repo owner/name --auto-interest
+```
+
+Installs the action, writes the workflow, sets the secrets (`REMYX_API_KEY`, `ANTHROPIC_API_KEY`). Scheduled cron handles the weekly cadence from there.
+
+Trigger an ad-hoc run:
+
+```bash
+# Paper-anchored — exact arXiv id or a method-family search
+remyxai outrider trigger --repo owner/name --pin-arxiv 2410.20305v2
+remyxai outrider trigger --repo owner/name --search-method "riemannian preconditioning LoRA optimizer"
+
+# Brief-anchored — a design brief you supply directly, inline or from disk
+remyxai outrider trigger --repo owner/name --brief "add exponential backoff to the HTTP client"
+remyxai outrider trigger --repo owner/name --brief @design.md
+```
+
+`--pin-arxiv` implements the exact paper; `--search-method` searches for the top hit; `--brief` runs the paper-less flow where the design brief you supply IS the spec. See [`remyxai-cli`](https://github.com/remyxai/remyxai-cli) for bulk-install and per-dispatch routing.
+
+Setting up by hand instead of via the CLI? See [`docs/manual-install.md`](docs/manual-install.md).
+
+
+## Examples
+
+### Case study: three recent contributions to `huggingface/peft`
+
+Three parameter-efficient fine-tuning methods surfaced from arXiv, drafted on the `smellslikeml/peft` fork, and shepherded upstream to `huggingface/peft`:
+
+| <img src="docs/case-studies/peft/figures/riemannian_lora.png" width="340"> | <img src="docs/case-studies/peft/figures/supertuning.png" width="340"> | <img src="docs/case-studies/peft/figures/dora_factored_norm.png" width="340"> |
+|---|---|---|
+| **Riemannian Preconditioned LoRA** | **Super-Tuning & Supra** | **Scaling DoRA** (factored norm + fused kernel) |
+| [arXiv:2402.02347](https://arxiv.org/abs/2402.02347) — Zhang & Pilanci | [arXiv:2607.09287](https://arxiv.org/abs/2607.09287) — Ilin, Zmushko & Richtárik | [arXiv:2603.22276](https://arxiv.org/abs/2603.22276) — Zelenin & Zhuravlyova |
+| [huggingface/peft#3382](https://github.com/huggingface/peft/pull/3382) | [huggingface/peft#3518](https://github.com/huggingface/peft/pull/3518) | pending license clarification |
+| **merged 2026-08-03** — +401/6, 32.7d review | in review — +1309/24, coord [#3450](https://github.com/huggingface/peft/issues/3450) | internal draft — [smellslikeml/peft#18](https://github.com/smellslikeml/peft/pull/18) |
+
+Full case study — per-method deep dives, PR-shape cohort comparison, coordination-issue-first workflow — at **[docs/case-studies/peft.md](docs/case-studies/peft.md)**.
+
+### Case study: two training-free high-resolution methods for `huggingface/diffusers`
+
+Two complementary routes to 4K generation from off-the-shelf **FLUX** checkpoints — no fine-tuning, no new weights — surfaced from arXiv and shaped to diffusers' own conventions:
+
+- **HRDiT** — **[huggingface/diffusers#14480](https://github.com/huggingface/diffusers/pull/14480)** (in review). NTK RoPE scaling + structure guidance for up to 4096², landed as a self-contained **community pipeline** with no core-library changes. Built minimal-first: a position-alignment port, then NTK scaling and structure guidance layered only onto the stages that needed them.
+- **DyPE (+ optional spectral attention)** — proposed via **[huggingface/diffusers#14520](https://github.com/huggingface/diffusers/issues/14520)**. A training-free positional-embedding **hook** (`apply_dype`) that reproduces the reference bit-for-bit (Δ=0) and adds an optional spectral-attention mode which cuts residual 4K speckle ~6× while keeping fine detail. Offload-robust, a no-op at/below the trained resolution.
+
+The pair puts the same problem — training-free high-res on a RoPE DiT — into two different diffusers shapes. Choosing *which* shape is itself the contribution: HRDiT self-contains as a community pipeline, while DyPE sits closer to the core hooks (`apply_faster_cache`, `apply_pyramid_attention_broadcast`). Because precedent points both ways for DyPE, that placement is raised with maintainers in #14520 rather than assumed.
+
+Full case study — per-method detail, the placement question, validation figures — at **[docs/case-studies/diffusers.md](docs/case-studies/diffusers.md)**.
+### More examples
+
+Each PR below shows the **match** (paper → repo) and the **shape** (how the wiring landed):
+
+- **[OLMo-core #13](https://github.com/smellslikeml/OLMo-core/pull/13)** — Preemptive training instability monitor ([arXiv:2606.28116](https://arxiv.org/abs/2606.28116)). *Match:* `train/callbacks/` has the reactive `StabilityMonitorCallback`; the preemptive variant registers alongside. *Shape:* `MechanismMonitorCallback` with QK spectral entropy + MoE routing entropy, gated by a parameter-free rolling one-sided z-score; 12 tests.
+- **[OpenRLHF #14](https://github.com/smellslikeml/OpenRLHF/pull/14)** — MRPO step-level reward penalty ([arXiv:2606.31825v1](https://arxiv.org/abs/2606.31825v1)). *Match:* PPO advantages already carry per-step weighting. *Shape:* MRPO's decay factor slots into `RemoteExperienceMaker.compute_advantages_and_returns` as a second multiplier, opt-in flag, default-off byte-identical.
+- **[ag2 #9](https://github.com/smellslikeml/ag2/pull/9)** — Adaptive Context Elasticizer ([arXiv:2606.31564v1](https://arxiv.org/abs/2606.31564v1)). *Match:* `MiddlewareFactory` already extends the LLM-call pipeline. *Shape:* new elastic middleware alongside `HistoryLimiter` / `TokenLimiter`, per-instance abstraction cache for reversibility.
+- **[lerobot #9](https://github.com/smellslikeml/lerobot/pull/9)** — Dense Embodied Chain-of-Thought supervision ([arXiv:2606.30552v1](https://arxiv.org/abs/2606.30552v1)). *Match:* the annotator has staged language modules (plan / vqa). *Shape:* new `EcotReasoningModule` wired in as phase 4.5.
+- **[sglang #3](https://github.com/smellslikeml/sglang/pull/3)** — Batch-wise Adaptive Pruning ([arXiv:2608.14003](https://arxiv.org/abs/2608.14003)). *Match:* the gated-MLP `act_fn` (`SiluAndMul`) is the scoring/pruning site; integration rides `ForwardBatch.init_new` and the decode CUDA-graph runner. *Shape:* training-free adaptive FFN pruning with the per-cycle mask delivered *under* the captured decode graph (fixed k-wide topology, between-replay buffer updates); opt-in, default-off. Outrider surfaced + drafted it; the graph-capture integration was hand-built and validated (7B: −8pp at 1.40×) and offered upstream as RFC [sgl-project/sglang#35987](https://github.com/sgl-project/sglang/issues/35987).
+
+
+## Documentation
+
+- **[Configuration reference](docs/configuration.md)** — full inputs, outputs, status codes
+- **[Customization](docs/customization.md)** — tailor Outrider to your repo + signals it reads
+- **[Architecture](docs/architecture.md)** — selection taxonomy, pipeline, refinement chain
+- **[Guardrails](docs/guardrails.md)** — what the agent can and can't modify
+- **[Security](docs/security.md)** — the agent-harness defense-in-depth model (prompt-injection & credential-leak controls)
+- **[Model backends](docs/backends.md)** — full backend/auth matrix + per-dispatch switching template
+- **[Environments](docs/environments.md)** — describe workflow-attached tooling via `ENVIRONMENTS.md`
+- **[Weekly summary mode](docs/weekly-summary.md)** — opt-in rolling digest comments
+
+
+## License
+
+Apache 2.0. See [LICENSE](./LICENSE).
 
 ## Privacy
 
