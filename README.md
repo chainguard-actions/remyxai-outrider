@@ -43,6 +43,7 @@ Hardened by [Chainguard](https://www.chainguard.dev) from the upstream action at
 | v1.7.50 | [`v1.7.50`](https://github.com/chainguard-actions/remyxai-outrider/tree/v1.7.50) | [`f6b77e6`](https://github.com/remyxai/outrider/commit/f6b77e674dc47c2283ba4f269938bf6794738ee0) |
 | v1.7.51 | [`v1.7.51`](https://github.com/chainguard-actions/remyxai-outrider/tree/v1.7.51) | [`bad0a20`](https://github.com/remyxai/outrider/commit/bad0a20b06e30a010ac8ddd03e480bf97d281174) |
 | v1.7.52 | [`v1.7.52`](https://github.com/chainguard-actions/remyxai-outrider/tree/v1.7.52) | [`64554dd`](https://github.com/remyxai/outrider/commit/64554dd1a9ea259092b756aa5c2b8a5b3e44c484) |
+| v1.7.53 | [`v1.7.53`](https://github.com/chainguard-actions/remyxai-outrider/tree/v1.7.53) | [`23596f2`](https://github.com/remyxai/outrider/commit/23596f295274337880285a8b1a8493cabe15b1e6) |
 
 ## Privacy
 
