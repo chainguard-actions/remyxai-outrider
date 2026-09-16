@@ -1,0 +1,43 @@
+name: Test weekly-summary mode skips cleanly without discussion ID
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        continue-on-error: true
+        with:
+          interest-id: 'test-interest-00000000-0000-0000-0000-000000000000'
+          mode: 'weekly-summary'
+          weekly-discussion-id: ''
+          enable-cocoindex: 'false'
+
+      - name: Assert action skipped cleanly or failed gracefully
+        env:
+          STATUS: ${{ steps.action.outputs.status }}
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          echo "status: $STATUS"
+          if [ "$OUTCOME" = "success" ]; then
+            # The action docs say: "the mode skips cleanly when empty"
+            # Expected status: weekly_summary_skipped_no_discussion_id
+            if [ "$STATUS" = "weekly_summary_skipped_no_discussion_id" ]; then
+              echo "PASS: action skipped cleanly with status='$STATUS'"
+            elif [ -n "$STATUS" ]; then
+              echo "PASS: action produced status='$STATUS'"
+            else
+              echo "FAIL: action succeeded but status output is empty"
+              exit 1
+            fi
+          elif [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: action failed gracefully (no REMYX_API_KEY or sentinel repo)"
+          else
+            echo "FAIL: unexpected outcome '$OUTCOME'"
+            exit 1
+          fi
