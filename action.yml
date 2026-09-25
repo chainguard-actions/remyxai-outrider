@@ -590,7 +590,7 @@ runs:
         ACTION_PATH: ${{ github.action_path }}
       run: python "$ACTION_PATH/src/configure_backend.py"
     - name: Set up Node (for the agent CLI)
-      uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      uses: chainguard-actions/actions-setup-node@031fc9bd73e651da81e6a7294b2af29e64d5f39c # v4
       with:
         node-version: '20'
     - name: Install the coding-agent CLI
