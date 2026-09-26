@@ -10,68 +10,35 @@
 
 **Harden Agent Version:** `2`
 
-Action **remyxai--outrider/v1.7.14** was hardened automatically. 3 finding(s) were identified and resolved across 1 iteration(s).
+Action **remyxai--outrider/v1.7.14** was hardened automatically. 2 finding(s) were identified and resolved across 1 iteration(s).
 
 ## Findings Fixed
 
-### unpinned-uses (severity: high)
-
-action.yml references actions/setup-python@v5 and actions/setup-node@v4 using mutable version tags instead of pinned 40-character commit SHAs. .github/workflows/outrider.yml references actions/checkout@v4 using a mutable version tag. Any of these could be silently replaced with a malicious version.
-
-Locations:
-
-- `action.yml:270`
-- `action.yml:275`
-- `.github/workflows/outrider.yml:43`
-
 ### script-injection (severity: high)
 
-Sub-rule (a): ${{ ... }} expressions are interpolated directly inside run: shell command strings, allowing YAML template substitution to inject arbitrary shell code before the shell ever parses the command.
-
-1. action.yml — 'Install gh-graph selection-pass tool on PATH' step: `install -m 0755 "${{ github.action_path }}/src/gh_graph.py" /usr/local/bin/gh-graph` — ${{ github.action_path }} is interpolated directly into the shell command.
-
-2. action.yml — 'Recommend + implement + open PR' step: `python ${{ github.action_path }}/src/run.py` — ${{ github.action_path }} is interpolated directly into the shell command.
-
-3. .github/workflows/outrider.yml — 'Configure provider auth' step (line 56): `if [ "${{ inputs.provider }}" = "zai" ]; then` — ${{ inputs.provider }} is a workflow_dispatch input directly interpolated into the shell condition, enabling command injection by a user who can trigger the workflow.
-
-4. .github/workflows/outrider.yml — 'Mint Remyx bot token' step (line 68): `-d "{\"repo\": \"${{ github.repository }}\"}"` — ${{ github.repository }} is interpolated directly into the curl -d argument inside the run: block.
+Sub-rule (a): Two run: blocks in action.yml directly interpolate ${{ github.action_path }} inside shell command strings. Any ${{ ... }} expression inside a run: block is a script-injection risk because the expression is substituted by the template engine before the shell ever sees the string, allowing injection of shell metacharacters. (1) In the 'Install gh-graph selection-pass tool on PATH' step: `install -m 0755 "${{ github.action_path }}/src/gh_graph.py" /usr/local/bin/gh-graph`. (2) In the 'Recommend + implement + open PR' step: `python ${{ github.action_path }}/src/run.py`. Both should use the $GITHUB_ACTION_PATH environment variable instead.
 
 Locations:
 
-- `action.yml:285`
-- `action.yml:380`
-- `.github/workflows/outrider.yml:56`
-- `.github/workflows/outrider.yml:68`
+- `action.yml:260`
+- `action.yml:370`
 
-### github-env-injection (severity: high)
+### unpinned-uses (severity: high)
 
-In .github/workflows/outrider.yml, the 'Configure provider auth' step writes the env var $MODEL_INPUT (sourced from inputs.model via `MODEL_INPUT: ${{ inputs.model }}`) to $GITHUB_ENV without sanitization:
-
-  echo "ANTHROPIC_MODEL=$MODEL_INPUT" >> "$GITHUB_ENV"
-
-A workflow_dispatch caller can supply a newline-containing value for inputs.model, injecting arbitrary key=value pairs into the runner's environment for subsequent steps. The required sanitization step (`printf '%s' "$MODEL_INPUT" | tr -d '\n\r'`) is absent.
+Two uses: references in action.yml are pinned to mutable version tags rather than immutable 40-character commit SHAs. This exposes the action to supply-chain attacks if the upstream action's tag is moved or the repository is compromised. Failing references: (1) uses: actions/setup-python@v5 — should be pinned to a full SHA, e.g. actions/setup-python@<40-char-sha> # v5. (2) uses: actions/setup-node@v4 — should be pinned to a full SHA, e.g. actions/setup-node@<40-char-sha> # v4.
 
 Locations:
 
-- `.github/workflows/outrider.yml:62`
+- `action.yml:234`
+- `action.yml:239`
 
 ## Iteration Notes
 
 ### Iteration 1
 
-**Fixes applied:** unpinned-uses, script-injection, github-env-injection
+**Fixes applied:** unpinned-uses, script-injection
 
 **Notes:**
 
-Fixed all three finding types across action.yml and .github/workflows/outrider.yml:
-
-1. unpinned-uses: Pinned actions/setup-python@v5 → SHA a26af69..., actions/setup-node@v4 → SHA 49933ea..., actions/checkout@v4 → SHA 34e1148... with inline # tag comments.
-
-2. script-injection (4 locations):
-   - action.yml 'Install gh-graph' step: added `ACTION_PATH: ${{ github.action_path }}` to env block, replaced `"${{ github.action_path }}/src/gh_graph.py"` with `"$ACTION_PATH/src/gh_graph.py"`.
-   - action.yml 'Recommend + implement + open PR' step: added `ACTION_PATH: ${{ github.action_path }}` to existing env block, replaced `python ${{ github.action_path }}/src/run.py` with `python "$ACTION_PATH/src/run.py"`.
-   - outrider.yml 'Configure provider auth' step: added `PROVIDER_INPUT: ${{ inputs.provider }}` to env block, replaced `"${{ inputs.provider }}"` with `"$PROVIDER_INPUT"` in the shell condition.
-   - outrider.yml 'Mint Remyx bot token' step: added `GITHUB_REPOSITORY_VALUE: ${{ github.repository }}` to env block, replaced `${{ github.repository }}` with `$GITHUB_REPOSITORY_VALUE`; replaced `${{ secrets.REMYX_API_KEY }}` with `$REMYX_API_KEY` (already available from job-level env).
-
-3. github-env-injection: In outrider.yml 'Configure provider auth' step, added sanitization: `safe_model=$(printf '%s' "$MODEL_INPUT" | tr -d '\n\r')` and write `$safe_model` to GITHUB_ENV instead of raw `$MODEL_INPUT`.
+Fixed all three findings in hardened/action/action.yml: (1) Pinned actions/setup-python@v5 to @a26af69be951a213d495a4c3e4e4022e16d87065 # v5. (2) Pinned actions/setup-node@v4 to @49933ea5288caeca8642d1e84afbd3f7d6820020 # v4. (3) Replaced both ${{ github.action_path }} template expressions in run: blocks with the $GITHUB_ACTION_PATH environment variable — one in the 'Install gh-graph selection-pass tool on PATH' step and one in the 'Recommend + implement + open PR' step. The python invocation was also quoted for robustness.
 
