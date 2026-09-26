@@ -10,110 +10,51 @@
 
 **Harden Agent Version:** `2`
 
-Action **remyxai--outrider/v1.7.45** was hardened automatically. 4 finding(s) were identified and resolved across 2 iteration(s).
+Action **remyxai--outrider/v1.7.45** was hardened automatically. 4 finding(s) were identified and resolved across 1 iteration(s).
 
 ## Findings Fixed
 
 ### unpinned-uses (severity: high)
 
-Multiple `uses:` references are pinned to mutable version tags rather than full 40-character commit SHAs, making them vulnerable to supply-chain attacks if the tag is moved.
-
-In action.yml:
-- `uses: actions/setup-python@v5` (tag ref)
-- `uses: actions/setup-node@v4` (tag ref)
-
-In .github/workflows/outrider-daily.yml:
-- `uses: actions/checkout@v4` (tag ref)
-
-In .github/workflows/outrider.yml:
-- `uses: actions/checkout@v4` (tag ref)
-
-All should be pinned to their full SHA digest, e.g. `actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4`.
+Two `uses:` references in action.yml use mutable version tags instead of pinned 40-character SHA digests, making the action vulnerable to supply-chain attacks if the upstream action is compromised or the tag is moved:
+- `uses: actions/setup-python@v5` (tag: v5)
+- `uses: actions/setup-node@v4` (tag: v4)
+These should be pinned to their full commit SHAs, e.g. `actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5`.
 
 Locations:
 
-- `action.yml:336`
-- `action.yml:341`
-- `.github/workflows/outrider-daily.yml:38`
-- `.github/workflows/outrider.yml:55`
+- `action.yml:396`
+- `action.yml:400`
 
 ### script-injection (severity: high)
 
-Multiple `run:` blocks interpolate GitHub Actions expressions (`${{ ... }}`) directly into shell command strings, enabling script injection.
-
-**action.yml — "Install gh-graph selection-pass tool on PATH" step (sub-rule a):**
-```
-run: |
-  install -m 0755 "${{ github.action_path }}/src/gh_graph.py" /usr/local/bin/gh-graph
-```
-`${{ github.action_path }}` is a `github.*` context value injected directly into the shell command.
-
-**action.yml — "Recommend + implement + open PR" step (sub-rule a):**
-```
-run: |
-  python ${{ github.action_path }}/src/run.py
-```
-Same issue — `${{ github.action_path }}` directly in the shell command, unquoted.
-
-**outrider.yml — "Configure provider auth" step (sub-rule a):**
-```
-run: |
-  if [ "${{ inputs.provider }}" = "zai" ]; then
-```
-`${{ inputs.provider }}` is a workflow_dispatch input interpolated directly into the shell `if` condition, allowing an attacker to inject shell metacharacters.
-
-**outrider.yml — "Mint Remyx bot token" step (sub-rule a):**
-```
-run: |
-  token="$(curl -sf -X POST \
-    -H "Authorization: Bearer ${{ secrets.REMYX_API_KEY }}" \
-    -d "{\"repo\": \"${{ github.repository }}\"}" ...)"
-```
-`${{ secrets.REMYX_API_KEY }}` and `${{ github.repository }}` are interpolated directly into the shell command string.
-
-**outrider-weekly-refine.yml — "Pick candidate" step (sub-rule a):**
-```
-run: |
-  LOOKBACK_DAYS="${{ inputs.lookback-days || '7' }}"
-  OVERRIDE="${{ inputs.pick-override || '' }}"
-  OVERRIDE_ARXIV="${{ inputs.pick-override-arxiv || '' }}"
-```
-Three `workflow_dispatch` inputs are interpolated directly into shell variable assignments, allowing injection of shell metacharacters via the input values.
+Two `run:` blocks directly interpolate `${{ github.action_path }}` inside shell command strings (rule a). Any `${{ ... }}` expression interpolated directly in a `run:` block is a script-injection risk because the value is substituted by the Actions template engine before the shell ever sees it, bypassing shell quoting. Offending lines:
+1. `install -m 0755 "${{ github.action_path }}/src/gh_graph.py" /usr/local/bin/gh-graph` — in the 'Install gh-graph selection-pass tool on PATH' step.
+2. `python ${{ github.action_path }}/src/run.py` — in the 'Recommend + implement + open PR' step.
+Fix: use the `$GITHUB_ACTION_PATH` environment variable instead (already available in composite actions), e.g. `install -m 0755 "$GITHUB_ACTION_PATH/src/gh_graph.py"` and `python "$GITHUB_ACTION_PATH/src/run.py"`.
 
 Locations:
 
-- `action.yml:360`
-- `action.yml:497`
-- `.github/workflows/outrider.yml:64`
-- `.github/workflows/outrider.yml:74`
-- `.github/workflows/outrider-weekly-refine.yml:57`
+- `action.yml:420`
+- `action.yml:560`
 
 ### github-env-injection (severity: high)
 
-Multiple `run:` blocks write inherited process environment variables (set by the calling workflow) to `$GITHUB_ENV` without the required sanitization step (`printf '%s' ... | tr -d '\n\r'`), enabling newline injection that can poison subsequent steps' environment.
-
-**action.yml — "Configure backend from provider input" step:**
-The variables `$ZAI_API_KEY`, `$MOONSHOT_API_KEY`, and `$INPUT_MODEL` are inherited from the calling workflow's `env:` block and written directly to `$GITHUB_ENV`:
-```bash
-echo "ANTHROPIC_AUTH_TOKEN=$ZAI_API_KEY" >> "$GITHUB_ENV"      # FAIL: no tr -d newlines
-echo "ANTHROPIC_AUTH_TOKEN=$MOONSHOT_API_KEY" >> "$GITHUB_ENV" # FAIL: no tr -d newlines
-echo "ANTHROPIC_MODEL=$INPUT_MODEL" >> "$GITHUB_ENV"           # FAIL: no tr -d newlines
+The 'Configure backend from provider input' step writes inherited process environment variables directly to `$GITHUB_ENV` without the required sanitization step (`printf '%s' "$VAR" | tr -d '\n\r'`). These env vars (`ZAI_API_KEY`, `MOONSHOT_API_KEY`, `INPUT_MODEL`) are set by the calling workflow's `env:` block and are therefore workflow-controlled (untrusted) inputs. Writing them unsanitized to GITHUB_ENV allows a newline-injection attack that could define arbitrary additional environment variables for subsequent steps. Affected writes:
+- `echo "ANTHROPIC_AUTH_TOKEN=$ZAI_API_KEY" >> "$GITHUB_ENV"` (zai branch)
+- `echo "ANTHROPIC_AUTH_TOKEN=$MOONSHOT_API_KEY" >> "$GITHUB_ENV"` (moonshot branch)
+- `echo "ANTHROPIC_MODEL=$INPUT_MODEL" >> "$GITHUB_ENV"` (model name branch)
+Fix: sanitize each value before writing, e.g.:
 ```
-A calling workflow can set `ZAI_API_KEY`, `MOONSHOT_API_KEY`, or `model` input to a value containing newlines, injecting arbitrary key=value pairs into `$GITHUB_ENV`.
-
-**outrider.yml — "Configure provider auth" step:**
-The variables `$ZAI_API_KEY_SECRET`, `$ANTHROPIC_API_KEY_SECRET`, and `$MODEL_INPUT` (sourced from `inputs.model` via env) are written to `$GITHUB_ENV` without sanitization:
-```bash
-echo "ANTHROPIC_AUTH_TOKEN=$ZAI_API_KEY_SECRET" >> "$GITHUB_ENV"  # FAIL: no tr -d newlines
-echo "ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY_SECRET" >> "$GITHUB_ENV" # FAIL: no tr -d newlines
-echo "ANTHROPIC_MODEL=$MODEL_INPUT" >> "$GITHUB_ENV"               # FAIL: no tr -d newlines
+safe=$(printf '%s' "$ZAI_API_KEY" | tr -d '\n\r')
+echo "ANTHROPIC_AUTH_TOKEN=$safe" >> "$GITHUB_ENV"
 ```
-`MODEL_INPUT` is set from `${{ inputs.model }}` (a workflow_dispatch input) and written to `$GITHUB_ENV` without sanitization.
 
 Locations:
 
-- `action.yml:430`
-- `.github/workflows/outrider.yml:65`
+- `action.yml:480`
+- `action.yml:490`
+- `action.yml:510`
 
 ### static-unsanitized-env-write (severity: medium)
 
@@ -131,26 +72,11 @@ Locations:
 
 **Notes:**
 
-Fixed all 4 findings:
-
-1. unpinned-uses: Pinned actions/setup-python@v5→SHA, actions/setup-node@v4→SHA, and actions/checkout@v4→SHA (in both outrider.yml and outrider-daily.yml) using full 40-char commit SHAs with tag comments.
-
-2. script-injection: Moved all ${{ }} expressions from run: blocks to env: blocks:
-   - action.yml gh-graph step: ACTION_PATH env var for github.action_path
-   - action.yml recommend step: ACTION_PATH env var for github.action_path
-   - outrider.yml Configure provider auth: PROVIDER_INPUT env var for inputs.provider
-   - outrider.yml Mint Remyx bot token: REMYX_API_KEY_SECRET and GITHUB_REPOSITORY_VALUE env vars
-   - outrider-weekly-refine.yml Pick candidate: INPUT_LOOKBACK_DAYS, INPUT_OVERRIDE, INPUT_OVERRIDE_ARXIV env vars
-
-3. github-env-injection: Added printf '%s' ... | tr -d '\n\r' sanitization for all GITHUB_ENV writes in action.yml (ZAI_API_KEY, MOONSHOT_API_KEY, INPUT_MODEL) and outrider.yml (ZAI_API_KEY_SECRET, ANTHROPIC_API_KEY_SECRET, MODEL_INPUT).
-
-4. static-unsanitized-env-write: The INPUT_MODEL write in action.yml's Configure backend step is now sanitized (same fix as github-env-injection above).
-
-### Iteration 2
-
-**Fixes applied:** github-env-injection
-
-**Notes:**
-
-Fixed the github-env-injection vulnerability in outrider-weekly-refine.yml at lines 120-121. Before writing BRANCH and ARXIV to $GITHUB_OUTPUT, both values are now sanitized using `printf '%s' "$VAR" | tr -d '\n\r'` to strip newline characters. This prevents an attacker-controlled workflow_dispatch input (pick-override or pick-override-arxiv) containing a newline from injecting extra key-value pairs into the step output file.
+Fixed all four findings in hardened/action/action.yml:
+1. Pinned actions/setup-python@v5 → @a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+2. Pinned actions/setup-node@v4 → @49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+3. Replaced ${{ github.action_path }} with $GITHUB_ACTION_PATH in both run: blocks (Install gh-graph step and Recommend + implement + open PR step)
+4. Sanitized ZAI_API_KEY before writing ANTHROPIC_AUTH_TOKEN to $GITHUB_ENV (safe_zai=$(printf '%s' "$ZAI_API_KEY" | tr -d '\n\r'))
+5. Sanitized MOONSHOT_API_KEY before writing ANTHROPIC_AUTH_TOKEN to $GITHUB_ENV (safe_moonshot=$(printf '%s' "$MOONSHOT_API_KEY" | tr -d '\n\r'))
+6. Sanitized INPUT_MODEL before writing ANTHROPIC_MODEL to $GITHUB_ENV (safe_model=$(printf '%s' "$INPUT_MODEL" | tr -d '\n\r'))
 
