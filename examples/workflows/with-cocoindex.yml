@@ -31,7 +31,7 @@ jobs:
       REMYX_API_KEY: ${{ secrets.REMYX_API_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@v4
 
       - name: Install cocoindex-code as a Claude Code skill
         run: |
@@ -68,7 +68,7 @@ jobs:
             + targeted Read over reading the whole file.
           EOF
 
-      - uses: remyxai/outrider@f6b77e674dc47c2283ba4f269938bf6794738ee0 # v1
+      - uses: remyxai/outrider@v1
         with:
           interest-id: 'YOUR-INTEREST-UUID-HERE'
           pin-method: ${{ inputs.pin-method }}
