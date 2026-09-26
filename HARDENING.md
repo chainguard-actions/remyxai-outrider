@@ -10,83 +10,37 @@
 
 **Harden Agent Version:** `2`
 
-Action **remyxai--outrider/v1.7.13** was hardened automatically. 7 finding(s) were identified and resolved across 1 iteration(s).
+Action **remyxai--outrider/v1.7.13** was hardened automatically. 2 finding(s) were identified and resolved across 1 iteration(s).
 
 ## Findings Fixed
 
+### script-injection (severity: high)
+
+Two `run:` blocks in action.yml directly interpolate `${{ github.action_path }}` inside shell command strings (sub-rule a). Although `github.action_path` is GitHub-controlled, any `${{ ... }}` expression directly inside a `run:` script is a script-injection finding per the check rules. (1) The 'Install gh-graph selection-pass tool on PATH' step runs: `install -m 0755 "${{ github.action_path }}/src/gh_graph.py" /usr/local/bin/gh-graph`. (2) The 'Recommend + implement + open PR' step runs: `python ${{ github.action_path }}/src/run.py`. Both should use the `$GITHUB_ACTION_PATH` environment variable instead of the `${{ ... }}` expression interpolation.
+
+Locations:
+
+- `action.yml:330`
+- `action.yml:460`
+
 ### unpinned-uses (severity: high)
 
-action.yml uses mutable tag refs instead of pinned SHA hashes for two actions: `actions/setup-python@v5` and `actions/setup-node@v4`. These should be pinned to full 40-character commit SHAs to prevent supply-chain attacks.
+Multiple `uses:` references are pinned to mutable version tags rather than immutable 40-character SHA digests, making the action vulnerable to supply-chain attacks if the referenced tags are moved or hijacked. In action.yml: `actions/setup-python@v5` and `actions/setup-node@v4`. In examples/workflows/with-cocoindex.yml: `actions/checkout@v4` and `remyxai/outrider@v1`. All should be pinned to full SHA digests (e.g. `actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4`).
 
 Locations:
 
-- `action.yml:296`
-- `action.yml:301`
-
-### unpinned-uses (severity: high)
-
-.github/workflows/outrider.yml uses a mutable tag ref `actions/checkout@v4` instead of a pinned SHA hash. This should be pinned to a full 40-character commit SHA to prevent supply-chain attacks.
-
-Locations:
-
-- `.github/workflows/outrider.yml:43`
-
-### script-injection (severity: high)
-
-Sub-rule (a): In the 'Configure provider auth' step, `${{ inputs.provider }}` is directly interpolated inside a run: shell command string: `if [ "${{ inputs.provider }}" = "zai" ]; then`. The `inputs.provider` value is a workflow_dispatch choice input that flows through YAML template substitution before the shell sees it, enabling script injection if the value contains shell metacharacters.
-
-Locations:
-
-- `.github/workflows/outrider.yml:56`
-
-### script-injection (severity: high)
-
-Sub-rule (a): In the 'Mint Remyx bot token' step, `${{ github.repository }}` is directly interpolated inside a run: shell command string inside a curl -d JSON argument: `-d "{\"repo\": \"${{ github.repository }}\"}"`. Any expression interpolated directly in a run: block is a script-injection risk regardless of context.
-
-Locations:
-
-- `.github/workflows/outrider.yml:68`
-
-### script-injection (severity: high)
-
-Sub-rule (a): In the 'Install gh-graph selection-pass tool on PATH' step, `${{ github.action_path }}` is directly interpolated inside a run: shell command string: `install -m 0755 "${{ github.action_path }}/src/gh_graph.py" /usr/local/bin/gh-graph`. Any ${{ }} expression inside a run: block is a script-injection finding.
-
-Locations:
-
-- `action.yml:316`
-
-### script-injection (severity: high)
-
-Sub-rule (a): In the 'Recommend + implement + open PR' step, `${{ github.action_path }}` is directly interpolated inside a run: shell command string: `python ${{ github.action_path }}/src/run.py`. Any ${{ }} expression inside a run: block is a script-injection finding.
-
-Locations:
-
-- `action.yml:393`
-
-### github-env-injection (severity: high)
-
-In the 'Configure provider auth' step, the env var `MODEL_INPUT` is set from `inputs.model` (an untrusted workflow_dispatch input) and then written to `$GITHUB_ENV` without sanitization: `echo "ANTHROPIC_MODEL=$MODEL_INPUT" >> "$GITHUB_ENV"`. An attacker-supplied newline in `inputs.model` could inject arbitrary environment variables. The required sanitization step (`safe=$(printf '%s' "$MODEL_INPUT" | tr -d '\n\r')`) is missing before the write.
-
-Locations:
-
-- `.github/workflows/outrider.yml:62`
+- `action.yml:308`
+- `action.yml:313`
+- `examples/workflows/with-cocoindex.yml:33`
+- `examples/workflows/with-cocoindex.yml:63`
 
 ## Iteration Notes
 
 ### Iteration 1
 
-**Fixes applied:** unpinned-uses, script-injection, github-env-injection
+**Fixes applied:** script-injection, unpinned-uses
 
 **Notes:**
 
-Fixed all 7 findings across action.yml and .github/workflows/outrider.yml:
-
-1. Pinned actions/setup-python@v5 → @a26af69be951a213d495a4c3e4e4022e16d87065 # v5 (action.yml)
-2. Pinned actions/setup-node@v4 → @49933ea5288caeca8642d1e84afbd3f7d6820020 # v4 (action.yml)
-3. Pinned actions/checkout@v4 → @11d5960a326750d5838078e36cf38b85af677262 # v4 (outrider.yml)
-4. Fixed script injection: moved inputs.provider into env block as PROVIDER_INPUT (outrider.yml)
-5. Fixed script injection: moved github.repository and secrets.REMYX_API_KEY into env block in Mint Remyx bot token step (outrider.yml)
-6. Fixed script injection: moved github.action_path into env block as ACTION_PATH in gh-graph install step (action.yml)
-7. Fixed script injection: moved github.action_path into existing env block as ACTION_PATH in recommend step (action.yml)
-8. Fixed github-env-injection: added printf/tr sanitization for MODEL_INPUT before writing to GITHUB_ENV (outrider.yml)
+Fixed two script-injection findings in action.yml by replacing ${{ github.action_path }} with $GITHUB_ACTION_PATH in both run: blocks (lines 330 and 460). Fixed four unpinned-uses findings: pinned actions/setup-python@v5 to SHA a26af69be951a213d495a4c3e4e4022e16d87065, actions/setup-node@v4 to SHA 49933ea5288caeca8642d1e84afbd3f7d6820020 in action.yml; pinned actions/checkout@v4 to SHA 11d5960a326750d5838078e36cf38b85af677262 and remyxai/outrider@v1 to SHA 1dcbff5c76ec301b1f1dd2bbaa7071fb6fe07b62 in examples/workflows/with-cocoindex.yml. Also repaired a file corruption that occurred during editing where the REMYX_RECOMMENDATION_LIMIT env var line had been merged with the run: block.
 
