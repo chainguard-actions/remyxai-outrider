@@ -10,44 +10,39 @@
 
 **Harden Agent Version:** `2`
 
-Action **remyxai--outrider/v1.6.11** was hardened automatically. 3 finding(s) were identified and resolved across 1 iteration(s).
+Action **remyxai--outrider/v1.6.11** was hardened automatically. 2 finding(s) were identified and resolved across 1 iteration(s).
 
 ## Findings Fixed
 
 ### script-injection (severity: high)
 
-Sub-rule (a): ${{ }} expressions are directly interpolated inside run: shell command strings in action.yml. In the 'Install gh-graph selection-pass tool on PATH' step, `${{ github.action_path }}` is embedded directly in the shell command: `install -m 0755 "${{ github.action_path }}/src/gh_graph.py" /usr/local/bin/gh-graph`. In the 'Recommend + implement + open PR' step, `${{ github.action_path }}` is embedded directly in: `python ${{ github.action_path }}/src/run.py`. Any ${{ }} expression in a run: block is a script-injection risk because YAML template substitution happens before the shell ever sees the value.
+Sub-rule (a): Two `run:` blocks in action.yml directly interpolate `${{ github.action_path }}` inside shell command strings. Any `${{ ... }}` expression inside a `run:` block is a script-injection risk because YAML template substitution occurs before the shell ever sees the string. (1) In the 'Install gh-graph selection-pass tool on PATH' step: `install -m 0755 "${{ github.action_path }}/src/gh_graph.py" /usr/local/bin/gh-graph`. (2) In the 'Recommend + implement + open PR' step: `python ${{ github.action_path }}/src/run.py`. Both should use the `$GITHUB_ACTION_PATH` environment variable instead.
 
 Locations:
 
-- `action.yml:175`
-- `action.yml:202`
-
-### script-injection (severity: high)
-
-Sub-rule (a): ${{ }} expressions are directly interpolated inside a run: shell command string in the workflow file. In the 'Mint Remyx bot token' step, both `${{ secrets.REMYX_API_KEY }}` and `${{ github.repository }}` are embedded directly in the curl command string inside the run: block. `github.repository` in particular can contain shell metacharacters (e.g. a repo named with special chars). These values should be passed via env: variables and referenced as shell variables (e.g. $REMYX_API_KEY, $GITHUB_REPOSITORY) instead.
-
-Locations:
-
-- `.github/workflows/outrider.yml:31`
+- `action.yml:221`
+- `action.yml:260`
 
 ### unpinned-uses (severity: high)
 
-Multiple uses: references are pinned to mutable version tags rather than immutable 40-character commit SHAs, making the action vulnerable to supply-chain attacks if the tag is moved. Failing references in action.yml: `uses: actions/setup-python@v5` and `uses: actions/setup-node@v4`. Failing reference in .github/workflows/outrider.yml: `uses: actions/checkout@v4`. All should be pinned to full SHA digests, e.g. `actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4`.
+Two `uses:` references in action.yml are pinned to mutable version tags rather than immutable 40-character SHA digests, making the action vulnerable to supply-chain attacks if the upstream tag is moved or compromised. Failing references: `actions/setup-python@v5` and `actions/setup-node@v4`. Both should be pinned to their full commit SHA (e.g. `actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5`).
 
 Locations:
 
-- `action.yml:163`
-- `action.yml:168`
-- `.github/workflows/outrider.yml:24`
+- `action.yml:200`
+- `action.yml:204`
 
 ## Iteration Notes
 
 ### Iteration 1
 
-**Fixes applied:** script-injection, unpinned-uses
+**Fixes applied:** unpinned-uses, script-injection
 
 **Notes:**
 
-Fixed all three findings: (1) Script injection in action.yml 'Install gh-graph' step: moved `${{ github.action_path }}` into env var ACTION_PATH. (2) Script injection in action.yml 'Recommend + implement + open PR' step: added ACTION_PATH to the existing env block and replaced the inline expression with $ACTION_PATH. (3) Script injection in outrider.yml 'Mint Remyx bot token' step: moved `${{ secrets.REMYX_API_KEY }}` and `${{ github.repository }}` into step-level env vars (REMYX_API_KEY, GH_REPOSITORY) and referenced them as shell variables. (4) Pinned actions/setup-python@v5 to SHA a26af69be951a213d495a4c3e4e4022e16d87065. (5) Pinned actions/setup-node@v4 to SHA 49933ea5288caeca8642d1e84afbd3f7d6820020. (6) Pinned actions/checkout@v4 to SHA 34e114876b0b11c390a56381ad16ebd13914f8d5.
+Fixed all findings in hardened/action/action.yml:
+1. Pinned `actions/setup-python@v5` to SHA `a26af69be951a213d495a4c3e4e4022e16d87065` (# v5)
+2. Pinned `actions/setup-node@v4` to SHA `49933ea5288caeca8642d1e84afbd3f7d6820020` (# v4)
+3. Replaced `${{ github.action_path }}/src/gh_graph.py` with `$GITHUB_ACTION_PATH/src/gh_graph.py` in the 'Install gh-graph selection-pass tool on PATH' step
+4. Replaced `python ${{ github.action_path }}/src/run.py` with `python "$GITHUB_ACTION_PATH/src/run.py"` in the 'Recommend + implement + open PR' step
 
