@@ -10,50 +10,27 @@
 
 **Harden Agent Version:** `2`
 
-Action **remyxai--outrider/v1.6.5** was hardened automatically. 5 finding(s) were identified and resolved across 1 iteration(s).
+Action **remyxai--outrider/v1.6.5** was hardened automatically. 2 finding(s) were identified and resolved across 1 iteration(s).
 
 ## Findings Fixed
 
-### script-injection (severity: high)
+### unpinned-uses (severity: high)
 
-Sub-rule (a): The 'Install gh-graph selection-pass tool on PATH' step in action.yml directly interpolates `${{ github.action_path }}` inside a run: shell command string: `install -m 0755 "${{ github.action_path }}/src/gh_graph.py" /usr/local/bin/gh-graph`. Any ${{ }} expression inside a run: block is a script-injection risk.
+Two composite action steps reference external actions using mutable version tags instead of full 40-character commit SHA pins. This exposes the action to supply-chain attacks if the upstream tag is moved or the repository is compromised. Failing references: `actions/setup-python@v5` and `actions/setup-node@v4`. Both must be pinned to their full SHA (e.g. `actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5`).
 
 Locations:
 
+- `action.yml:163`
 - `action.yml:168`
 
 ### script-injection (severity: high)
 
-Sub-rule (a): The 'Recommend + implement + open PR' step in action.yml directly interpolates `${{ github.action_path }}` inside a run: shell command string: `python ${{ github.action_path }}/src/run.py`. Any ${{ }} expression inside a run: block is a script-injection risk.
+Sub-rule (a): Two `run:` blocks directly interpolate `${{ github.action_path }}` — a GitHub Actions expression — inside shell command strings. Any `${{ ... }}` expression directly inside a `run:` block is a script-injection risk because the value is substituted by the template engine before the shell ever sees it, bypassing shell quoting. (1) In the 'Install gh-graph selection-pass tool on PATH' step: `install -m 0755 "${{ github.action_path }}/src/gh_graph.py" /usr/local/bin/gh-graph`. (2) In the 'Recommend + implement + open PR' step: `python ${{ github.action_path }}/src/run.py`. Both should use the `$GITHUB_ACTION_PATH` environment variable instead (e.g. `python "$GITHUB_ACTION_PATH/src/run.py"`).
 
 Locations:
 
-- `action.yml:196`
-
-### script-injection (severity: high)
-
-Sub-rule (a): The 'Mint Remyx bot token' step in outrider.yml directly interpolates `${{ secrets.REMYX_API_KEY }}` and `${{ github.repository }}` inside a run: shell command string (inside the curl invocation). Any ${{ }} expression inside a run: block is a script-injection risk.
-
-Locations:
-
-- `.github/workflows/outrider.yml:30`
-
-### unpinned-uses (severity: high)
-
-action.yml references two actions using mutable version tags instead of full 40-character commit SHAs: `actions/setup-python@v5` and `actions/setup-node@v4`. These are vulnerable to supply-chain attacks if the tag is moved.
-
-Locations:
-
-- `action.yml:155`
-- `action.yml:161`
-
-### unpinned-uses (severity: high)
-
-.github/workflows/outrider.yml references `actions/checkout@v4` using a mutable version tag instead of a full 40-character commit SHA. This is vulnerable to supply-chain attacks if the tag is moved.
-
-Locations:
-
-- `.github/workflows/outrider.yml:22`
+- `action.yml:185`
+- `action.yml:222`
 
 ## Iteration Notes
 
@@ -63,12 +40,5 @@ Locations:
 
 **Notes:**
 
-Fixed all 5 findings across action.yml and .github/workflows/outrider.yml:
-
-1. action.yml - Pinned actions/setup-python@v5 → @a26af69be951a213d495a4c3e4e4022e16d87065 # v5
-2. action.yml - Pinned actions/setup-node@v4 → @49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-3. action.yml (line 168) - Fixed script injection in 'Install gh-graph selection-pass tool on PATH' step: moved ${{ github.action_path }} into ACTION_PATH env var, replaced inline expression with $ACTION_PATH in run command
-4. action.yml (line 196) - Fixed script injection in 'Recommend + implement + open PR' step: added ACTION_PATH: ${{ github.action_path }} to the existing env block, replaced inline expression with $ACTION_PATH in run command
-5. outrider.yml - Pinned actions/checkout@v4 → @11d5960a326750d5838078e36cf38b85af677262 # v4
-6. outrider.yml (line 30) - Fixed script injection in 'Mint Remyx bot token' step: moved ${{ secrets.REMYX_API_KEY }} into REMYX_API_KEY env var and ${{ github.repository }} into GH_REPOSITORY env var; replaced inline expressions with plain env var references in the curl command
+Fixed four issues in hardened/action/action.yml: (1) Pinned actions/setup-python@v5 to full SHA a26af69be951a213d495a4c3e4e4022e16d87065 with # v5 comment. (2) Pinned actions/setup-node@v4 to full SHA 49933ea5288caeca8642d1e84afbd3f7d6820020 with # v4 comment. (3) Replaced ${{ github.action_path }} with $GITHUB_ACTION_PATH in the 'Install gh-graph selection-pass tool on PATH' step. (4) Replaced ${{ github.action_path }} with "$GITHUB_ACTION_PATH" (properly quoted) in the 'Recommend + implement + open PR' step's python invocation.
 
