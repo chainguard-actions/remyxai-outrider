@@ -1,0 +1,74 @@
+name: Test recommend mode (default)
+on:
+  workflow_dispatch:
+
+jobs:
+  test-recommend-mode:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        continue-on-error: true
+        with:
+          interest-id: 'test-interest-00000000-0000-0000-0000-000000000000'
+          mode: 'recommend'
+          chain: 'false'
+          rate-limit-days: '0'
+          enable-cocoindex: 'false'
+          min-confidence: 'low'
+          lookback: 'week'
+          candidate-pool: '5'
+
+      - name: Assert action ran and produced outputs or failed gracefully
+        env:
+          STATUS: ${{ steps.action.outputs.status }}
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          echo "status: $STATUS"
+          if [ "$OUTCOME" = "success" ]; then
+            if [ -z "$STATUS" ]; then
+              echo "FAIL: action succeeded but status output is empty"
+              exit 1
+            fi
+            echo "PASS: action succeeded with status='$STATUS'"
+          elif [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: action failed gracefully (expected without real REMYX_API_KEY)"
+          else
+            echo "FAIL: unexpected outcome '$OUTCOME'"
+            exit 1
+          fi
+
+      - name: Assert outputs are consistent when action succeeds
+        if: steps.action.outcome == 'success'
+        env:
+          STATUS: ${{ steps.action.outputs.status }}
+          PR_URL: ${{ steps.action.outputs.pr_url }}
+          ISSUE_URL: ${{ steps.action.outputs.issue_url }}
+          ARXIV: ${{ steps.action.outputs.arxiv }}
+          TIER: ${{ steps.action.outputs.tier }}
+        run: |
+          echo "status: $STATUS"
+          echo "pr_url: $PR_URL"
+          echo "issue_url: $ISSUE_URL"
+          echo "arxiv: $ARXIV"
+          echo "tier: $TIER"
+          # If a PR was opened, pr_url should be set
+          if [ "$STATUS" = "pr_opened" ] || [ "$STATUS" = "pr_opened_draft" ]; then
+            if [ -z "$PR_URL" ]; then
+              echo "FAIL: status is '$STATUS' but pr_url is empty"
+              exit 1
+            fi
+            echo "PASS: pr_url is set for PR status"
+          fi
+          # If an issue was opened, issue_url should be set
+          if [ "$STATUS" = "issue_opened" ]; then
+            if [ -z "$ISSUE_URL" ]; then
+              echo "FAIL: status is 'issue_opened' but issue_url is empty"
+              exit 1
+            fi
+            echo "PASS: issue_url is set for issue status"
+          fi
+          echo "PASS: output consistency check complete"

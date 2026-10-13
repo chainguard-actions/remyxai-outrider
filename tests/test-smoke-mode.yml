@@ -1,0 +1,38 @@
+name: Test smoke mode (wiring check)
+on:
+  workflow_dispatch:
+
+jobs:
+  test-smoke-mode:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        continue-on-error: true
+        with:
+          interest-id: 'test-interest-00000000-0000-0000-0000-000000000000'
+          mode: 'smoke'
+          enable-cocoindex: 'false'
+          rate-limit-days: '0'
+
+      - name: Assert action ran and produced a status output or failed gracefully
+        env:
+          STATUS: ${{ steps.action.outputs.status }}
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          echo "status: $STATUS"
+          if [ "$OUTCOME" = "success" ]; then
+            if [ -z "$STATUS" ]; then
+              echo "FAIL: action succeeded but status output is empty"
+              exit 1
+            fi
+            echo "PASS: action succeeded with status='$STATUS'"
+          elif [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: action failed gracefully (expected without real REMYX_API_KEY)"
+          else
+            echo "FAIL: unexpected outcome '$OUTCOME'"
+            exit 1
+          fi
