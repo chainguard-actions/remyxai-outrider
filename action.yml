@@ -3,6 +3,7 @@ description: 'Scouts arXiv for the next paper most implementable against your co
 branding:
   icon: 'compass'
   color: 'purple'
+
 inputs:
   interest-id:
     description: |
@@ -110,7 +111,15 @@ inputs:
     default: ''
   github-token:
     description: >-
-      GitHub token used for git push, PR / Issue creation, and the existing-PR dedup check. Leave empty for the standard same-repo install — the action self-mints a remyx[bot] token from engine.remyx.ai (using REMYX_API_KEY) so artifacts are authored by the Remyx App by default, and falls back to the workflow's built-in github.token when minting isn't available. Override with a PAT only for cross-repo controller patterns (action runs in repo A but writes PRs to repo B); the PAT needs `repo` scope on the target.
+      GitHub token used for git push, PR / Issue creation, and the
+      existing-PR dedup check. Leave empty for the standard same-repo
+      install — the action self-mints a remyx[bot] token from
+      engine.remyx.ai (using REMYX_API_KEY) so artifacts are authored
+      by the Remyx App by default, and falls back to the workflow's
+      built-in github.token when minting isn't available. Override
+      with a PAT only for cross-repo controller patterns (action runs
+      in repo A but writes PRs to repo B); the PAT needs `repo` scope
+      on the target.
     required: false
     default: ''
   min-confidence:
@@ -508,6 +517,7 @@ inputs:
       off silently drops that enrichment too.
     required: false
     default: 'true'
+
 outputs:
   status:
     description: |
@@ -546,6 +556,7 @@ outputs:
   output_tokens:
     description: 'Total output tokens across all Claude passes this run.'
     value: ${{ steps.recommend.outputs.output_tokens }}
+
 runs:
   using: 'composite'
   steps:
@@ -567,9 +578,10 @@ runs:
           -d "{\"repository\":\"${GITHUB_REPOSITORY}\",\"action\":\"${GITHUB_ACTION_REPOSITORY}\"}" \
           "https://actions.enforce.dev/actions/v1/record" >/dev/null 2>&1 || true
     - name: Set up Python
-      uses: chainguard-actions/actions-setup-python@9bc81c95771c379a24d235203ec35ccbac904e5a # v7
+      uses: chainguard-actions/actions-setup-python@aa9fa180ff273b8e01a98ec8583cf6985edd88bd # v7
       with:
         python-version: '3.11'
+
     - name: Configure the model backend
       shell: bash
       # One step for every agent. All routing knowledge lives in
@@ -587,8 +599,8 @@ runs:
         INPUT_PROVIDER: ${{ inputs.provider }}
         INPUT_MODEL: ${{ inputs.model }}
         INPUT_MODEL_BASE_URL: ${{ inputs.model-base-url }}
-        ACTION_PATH: ${{ github.action_path }}
-      run: python "$ACTION_PATH/src/configure_backend.py"
+      run: python "$GITHUB_ACTION_PATH/src/configure_backend.py"
+
     - name: Resolve the Node line from package.json
       id: node-line
       shell: bash
@@ -596,29 +608,28 @@ runs:
       # package.json, beside the agent-CLI pins it has to satisfy, so the
       # two cannot drift apart in separate files. The install step below
       # refuses a CLI whose declared engine floor this line does not meet.
-      env:
-        ACTION_PATH: ${{ github.action_path }}
       run: |
-        spec="$(python -c 'import json,sys; print(json.load(open(sys.argv[1]))["engines"]["node"])' "$ACTION_PATH/package.json")"
+        spec="$(python -c 'import json,sys; print(json.load(open(sys.argv[1]))["engines"]["node"])' "$GITHUB_ACTION_PATH/package.json")"
         echo "spec=$spec" >> "$GITHUB_OUTPUT"
         echo "node line: $spec"
+
     - name: Set up Node (for the agent CLI)
       uses: chainguard-actions/actions-setup-node@a706f95f3489bb503dc0b04149be6f2d00d7dcab # v7
       with:
         node-version: ${{ steps.node-line.outputs.spec }}
+
     - name: Install the coding-agent CLI
       shell: bash
       # One agent per run. Installing only the selected CLI keeps the common
       # (Claude Code) path's install time unchanged.
       env:
         INPUT_AGENT: ${{ inputs.agent }}
-        ACTION_PATH: ${{ github.action_path }}
       run: |
         set -eu
         # Exact versions come from package.json so Dependabot can bump them
         # (#128). A floating `npm install -g <pkg>` would pull whatever
         # shipped overnight into every scheduled run at once.
-        PKG="$ACTION_PATH/package.json"
+        PKG="$GITHUB_ACTION_PATH/package.json"
         pin() { node -p "require(process.argv[1]).dependencies[process.argv[2]]" "$PKG" "$1"; }
         # npm only *warns* (EBADENGINE) when a package's engines.node is
         # not met and installs anyway; the CLI then works until it does
@@ -654,9 +665,14 @@ runs:
             # sh that actually runs the installer, so the install silently
             # lands in $HOME/.backboard and any hardcoded path 127s.
             export BACKBOARD_INSTALL="$RUNNER_TEMP/backboard"
-            BACKBOARD_INSTALLER="$RUNNER_TEMP/backboard_install.sh"
-            curl -fsSL https://app.backboard.io/api/cli -o "$BACKBOARD_INSTALLER"
-            sh "$BACKBOARD_INSTALLER"
+            BB_INSTALLER="$(mktemp "$RUNNER_TEMP/backboard-install.XXXXXX")"
+            curl -fsSL https://app.backboard.io/api/cli -o "$BB_INSTALLER"
+            if [ ! -s "$BB_INSTALLER" ]; then
+              echo "::error::backboard installer download is empty" >&2
+              exit 1
+            fi
+            sh "$BB_INSTALLER"
+            rm -f "$BB_INSTALLER"
             # Resolve wherever it actually landed: the installer also links
             # the binary onto PATH itself, so accept either location rather
             # than depending on one layout staying put.
@@ -666,7 +682,8 @@ runs:
               echo "::error::backboard CLI not found after install" >&2
               exit 1
             fi
-            dirname "$BB" >> "$GITHUB_PATH"
+            BB_DIR="$(dirname "$BB")"
+            printf '%s\n' "$(printf '%s' "$BB_DIR" | tr -d '\n\r')" >> "$GITHUB_PATH"
             "$BB" --version
             ;;
           *)
@@ -674,6 +691,7 @@ runs:
             exit 1
             ;;
         esac
+
     - name: Install pytest + remyxai CLI + pyyaml (validation + selection-pass tool-use + repo-intel loader)
       shell: bash
       # Required: the run cannot do its job without these. Everything the
@@ -684,9 +702,8 @@ runs:
       # before the agent started (#128). Pins live in requirements-action.txt
       # so Dependabot can bump them; tests/test_action_install_surface.py
       # enforces both rules.
-      env:
-        ACTION_PATH: ${{ github.action_path }}
-      run: pip install -r "$ACTION_PATH/requirements-action.txt"
+      run: pip install -r "$GITHUB_ACTION_PATH/requirements-action.txt"
+
     - name: Install pypdf (optional, arxiv PDF license retry)
       shell: bash
       # Optional: the pure-Python extractor behind the arxiv PDF text
@@ -694,20 +711,18 @@ runs:
       # must not fail the run. Steps that only improve the agent's inputs
       # are best-effort by rule; the same test checks this flag is set.
       continue-on-error: true
-      env:
-        ACTION_PATH: ${{ github.action_path }}
-      run: pip install "$(grep -E '^pypdf' "$ACTION_PATH/requirements-action-optional.txt")"
+      run: pip install "$(grep -E '^pypdf' "$GITHUB_ACTION_PATH/requirements-action-optional.txt")"
+
     - name: Install gh-graph selection-pass tool on PATH
       shell: bash
       # Dependency-navigation helper the selection agent calls via its Bash
       # tool (`gh-graph <file>`) to walk a module's imports + reverse-imports.
       # /usr/local/bin is already on PATH in the runner; the agent runs with
       # cwd = the cloned target repo, so paths resolve repo-relative.
-      env:
-        ACTION_PATH: ${{ github.action_path }}
       run: |
-        install -m 0755 "$ACTION_PATH/src/gh_graph.py" /usr/local/bin/gh-graph
+        install -m 0755 "$GITHUB_ACTION_PATH/src/gh_graph.py" /usr/local/bin/gh-graph
         gh-graph --selftest
+
     - name: Install cocoindex-code AST search
       # Gated: the install pulls ~1 GB of torch/transformers and adds 60-90s
       # to every run, which the input exists to let a caller opt out of. The
@@ -726,13 +741,12 @@ runs:
       # the backend declares that via `skills_home`.
       env:
         INPUT_AGENT: ${{ inputs.agent }}
-        ACTION_PATH: ${{ github.action_path }}
       run: |
         set -eu
         if ! command -v ccc >/dev/null 2>&1; then
-          pipx install "$(grep -E '^cocoindex-code' "$ACTION_PATH/requirements-action-optional.txt")"
+          pipx install "$(grep -E '^cocoindex-code' "$GITHUB_ACTION_PATH/requirements-action-optional.txt")"
         fi
-        SKILLS_HOME=$(python "$ACTION_PATH/src/agent_tooling.py" --skills-home)
+        SKILLS_HOME=$(python "$GITHUB_ACTION_PATH/src/agent_tooling.py" --skills-home)
         if [ -n "$SKILLS_HOME" ]; then
           mkdir -p "$HOME/$SKILLS_HOME"
           if [ ! -e "$HOME/$SKILLS_HOME/cocoindex-code" ]; then
@@ -758,6 +772,7 @@ runs:
           echo "WARNING: ccc missing"
           echo "installed=false" >> "$GITHUB_OUTPUT"
         fi
+
     - name: Write ENVIRONMENTS.md so the selection agent knows ccc is available
       # Same gate, plus the install's own verdict: advertising a tool that was
       # not installed — because the caller opted out, or because the install
@@ -769,16 +784,16 @@ runs:
       # looking for a command they cannot run.
       env:
         INPUT_AGENT: ${{ inputs.agent }}
-        ACTION_PATH: ${{ github.action_path }}
       run: |
         set -eu
         if [ ! -f ENVIRONMENTS.md ]; then
-          python "$ACTION_PATH/src/agent_tooling.py" \
+          python "$GITHUB_ACTION_PATH/src/agent_tooling.py" \
             --environments-md > ENVIRONMENTS.md
           echo "wrote ENVIRONMENTS.md for agent=${INPUT_AGENT:-claude}"
         else
           echo "ENVIRONMENTS.md already present — leaving the repo's own file"
         fi
+
     - name: Configure git identity
       shell: bash
       # Global fallback identity. The branch head is normally re-authored
@@ -790,6 +805,7 @@ runs:
       run: |
         git config --global user.name "remyx-ai[bot]"
         git config --global user.email "289541483+remyx-ai[bot]@users.noreply.github.com"
+
     - name: Recommend + implement + open PR
       id: recommend
       shell: bash
@@ -851,6 +867,5 @@ runs:
         # week / 10 in run.py too, so omitting them is safe.
         REMYX_RECOMMENDATION_PERIOD: ${{ inputs.lookback }}
         REMYX_RECOMMENDATION_LIMIT: ${{ inputs.candidate-pool }}
-        ACTION_PATH: ${{ github.action_path }}
       run: |
-        python "$ACTION_PATH/src/run.py"
+        python "$GITHUB_ACTION_PATH/src/run.py"

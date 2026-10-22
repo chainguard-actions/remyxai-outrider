@@ -42,12 +42,11 @@ def main() -> int:
         print(f"::warning::{warning}", file=sys.stderr)
 
     github_env = os.environ.get("GITHUB_ENV")
+    lines = [f"{k}={v}" for k, v in routing.env.items()]
     if github_env:
         with open(github_env, "a", encoding="utf-8") as fh:
-            for k, v in routing.env.items():
-                safe_k = k.replace("\n", "").replace("\r", "")
-                safe_v = v.replace("\n", "").replace("\r", "")
-                fh.write(f"{safe_k}={safe_v}\n")
+            for line in lines:
+                fh.write(line + "\n")
 
     # Log what was selected, with secret VALUES never echoed — only names.
     target = routing.provider_display or "(caller-supplied environment)"
