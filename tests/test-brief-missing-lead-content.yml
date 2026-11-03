@@ -1,0 +1,40 @@
+name: Test brief mode without lead-content
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - id: action
+        uses: .
+        continue-on-error: true
+        env:
+          # Presence-only auth preflight runs before the brief check; a
+          # placeholder satisfies it. The run should stop at the empty
+          # brief before any agent call is made.
+          ANTHROPIC_API_KEY: placeholder-not-a-real-key
+          REMYX_API_KEY: placeholder-not-a-real-key
+        with:
+          mode: brief
+          lead-content: ''
+          interest-id: 00000000-0000-0000-0000-000000000000
+          enable-cocoindex: 'false'
+      - name: Assert brief skipped for missing lead content
+        env:
+          ACTUAL: ${{ steps.action.outputs.status }}
+          OUTCOME: ${{ steps.action.outcome }}
+          PR_URL: ${{ steps.action.outputs.pr_url }}
+        run: |
+          echo "outcome: $OUTCOME"
+          echo "status: $ACTUAL"
+          echo "pr_url: '$PR_URL'"
+          if [ "$ACTUAL" != "skipped_brief_missing_lead_content" ]; then
+            echo "FAIL: expected status 'skipped_brief_missing_lead_content'"
+            exit 1
+          fi
+          if [ -n "$PR_URL" ]; then
+            echo "FAIL: no PR should be opened"
+            exit 1
+          fi
+          echo "PASS"

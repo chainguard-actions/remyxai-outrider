@@ -1,0 +1,43 @@
+name: Test weekly-summary mode skips without discussion id
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - id: action
+        uses: .
+        continue-on-error: true
+        env:
+          # run.py requires these to be present before dispatching on mode;
+          # the weekly-summary skip happens before any call that uses them.
+          ANTHROPIC_API_KEY: placeholder-not-a-real-key
+          REMYX_API_KEY: placeholder-not-a-real-key
+        with:
+          mode: weekly-summary
+          interest-id: 00000000-0000-0000-0000-000000000000
+          weekly-discussion-id: ''
+          enable-cocoindex: 'false'
+      - name: Assert status is weekly_summary_skipped_no_discussion_id
+        env:
+          ACTUAL: ${{ steps.action.outputs.status }}
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          echo "actual: $ACTUAL"
+          if [ "$ACTUAL" != "weekly_summary_skipped_no_discussion_id" ]; then
+            echo "FAIL: expected 'weekly_summary_skipped_no_discussion_id'"
+            exit 1
+          fi
+          echo "PASS"
+      - name: Assert no discussion comment URL
+        env:
+          ACTUAL: ${{ steps.action.outputs.discussion_comment_url }}
+        run: |
+          echo "actual: '$ACTUAL'"
+          if [ -n "$ACTUAL" ]; then
+            echo "FAIL: expected empty discussion_comment_url"
+            exit 1
+          fi
+          echo "PASS"
