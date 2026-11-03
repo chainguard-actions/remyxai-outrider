@@ -638,7 +638,7 @@ runs:
           -d "{\"repository\":\"${GITHUB_REPOSITORY}\",\"action\":\"${GITHUB_ACTION_REPOSITORY}\"}" \
           "https://actions.enforce.dev/actions/v1/record" >/dev/null 2>&1 || true
     - name: Set up Python
-      uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
+      uses: chainguard-actions/actions-setup-python@54626a9f20a67b48c7f84a1362272e3a2e22000c # v7
       with:
         python-version: '3.11'
 
@@ -674,7 +674,7 @@ runs:
         echo "node line: $spec"
 
     - name: Set up Node (for the agent CLI)
-      uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+      uses: chainguard-actions/actions-setup-node@0fc7fd914070e07cca22606e4cab3cfeaf43711d # v7
       with:
         node-version: ${{ steps.node-line.outputs.spec }}
 
