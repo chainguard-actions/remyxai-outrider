@@ -578,7 +578,7 @@ runs:
           -d "{\"repository\":\"${GITHUB_REPOSITORY}\",\"action\":\"${GITHUB_ACTION_REPOSITORY}\"}" \
           "https://actions.enforce.dev/actions/v1/record" >/dev/null 2>&1 || true
     - name: Set up Python
-      uses: chainguard-actions/actions-setup-python@aa9fa180ff273b8e01a98ec8583cf6985edd88bd # v7
+      uses: chainguard-actions/actions-setup-python@54626a9f20a67b48c7f84a1362272e3a2e22000c # v7
       with:
         python-version: '3.11'
 
@@ -610,11 +610,12 @@ runs:
       # refuses a CLI whose declared engine floor this line does not meet.
       run: |
         spec="$(python -c 'import json,sys; print(json.load(open(sys.argv[1]))["engines"]["node"])' "$GITHUB_ACTION_PATH/package.json")"
-        echo "spec=$spec" >> "$GITHUB_OUTPUT"
-        echo "node line: $spec"
+        safe_spec="$(printf '%s' "$spec" | tr -d '\n\r')"
+        echo "spec=$safe_spec" >> "$GITHUB_OUTPUT"
+        echo "node line: $safe_spec"
 
     - name: Set up Node (for the agent CLI)
-      uses: chainguard-actions/actions-setup-node@a706f95f3489bb503dc0b04149be6f2d00d7dcab # v7
+      uses: chainguard-actions/actions-setup-node@0fc7fd914070e07cca22606e4cab3cfeaf43711d # v7
       with:
         node-version: ${{ steps.node-line.outputs.spec }}
 
@@ -660,11 +661,12 @@ runs:
           backboard)
             # Native binary (~99 MB), not an npm package.
             #
-            # BACKBOARD_INSTALL must be *exported*, not prefixed onto the
-            # pipeline: `VAR=x curl ... | sh` sets VAR for curl, not for the
-            # sh that actually runs the installer, so the install silently
-            # lands in $HOME/.backboard and any hardcoded path 127s.
+            # BACKBOARD_INSTALL must be *exported* so the installer script
+            # (run as a separate process below) sees it; otherwise the
+            # install silently lands in $HOME/.backboard.
             export BACKBOARD_INSTALL="$RUNNER_TEMP/backboard"
+            # Download the installer to a file first, then run it, rather
+            # than piping remote content straight into a shell.
             BB_INSTALLER="$(mktemp "$RUNNER_TEMP/backboard-install.XXXXXX")"
             curl -fsSL https://app.backboard.io/api/cli -o "$BB_INSTALLER"
             if [ ! -s "$BB_INSTALLER" ]; then
@@ -683,7 +685,8 @@ runs:
               exit 1
             fi
             BB_DIR="$(dirname "$BB")"
-            printf '%s\n' "$(printf '%s' "$BB_DIR" | tr -d '\n\r')" >> "$GITHUB_PATH"
+            BB_DIR_SAFE="$(printf '%s' "$BB_DIR" | tr -d '\n\r')"
+            printf '%s\n' "$BB_DIR_SAFE" >> "$GITHUB_PATH"
             "$BB" --version
             ;;
           *)
