@@ -1,0 +1,264 @@
+---
+type: Customization Guide
+title: Agent & model backends
+description: Route Outrider at a different coding agent (Claude Code, OpenAI Codex, Backboard R-CLI) and a different model backend (z.ai GLM, Moonshot Kimi, OpenAI, OpenRouter, Bedrock, Vertex, on-prem) — which pairs work, auth, workflow template, cost telemetry, debug.
+resource: https://github.com/remyxai/outrider/blob/main/docs/backends.md
+tags: [outrider, customization, agent-backends, model-backends, claude-code, codex, backboard, glm, kimi, moonshot, openrouter, bedrock, vertex]
+timestamp: 2026-07-16T00:00:00Z
+---
+
+# Agent & model backends
+
+Outrider's coding-agent step shells out to a coding-agent CLI — `claude` by default, or `codex` / `backboard` via the [`agent`](#coding-agents-the-agent-input) input. Anything that agent can authenticate against, Outrider can route through.
+
+This page covers the **model** axis. The `agent` axis, and which combinations of the two work, is in [Coding agents](#coding-agents-the-agent-input) below.
+
+By default Outrider talks to Anthropic's hosted API. To route at any other Anthropic-Messages-compatible backend — z.ai's GLM Coding Plan, Moonshot's Kimi, AWS Bedrock with Claude, GCP Vertex with Claude, an on-prem proxy — set the `model-base-url` action input. The Outrider engine doesn't care which backend served the response; the spec bundle, validators, refinement chain, and selection pass are all backend-agnostic.
+
+## Supported backends
+
+| Backend | `model-base-url` value | Secret | Default model | Recommended `claude-timeout` |
+|---|---|---|---|---|
+| Anthropic (default) | _(empty — uses `api.anthropic.com`)_ | `ANTHROPIC_API_KEY` | `claude-opus-4-8` | `900` (default) |
+| z.ai / GLM Coding Plan | `https://api.z.ai/api/anthropic` | `ZAI_API_KEY` | `glm-5.2` | `3600` (glm-5.2's thinking mode adds per-turn latency) |
+| Moonshot / Kimi | `https://api.moonshot.ai/anthropic` | `MOONSHOT_API_KEY` | `kimi-k3` | `3600` (thinking-mode adds per-turn latency) |
+| AWS Bedrock (Claude) | `https://bedrock-runtime.<region>.amazonaws.com` | (AWS SigV4 — uses the workflow's `aws-actions/configure-aws-credentials` chain) | (varies per Bedrock configuration) | `900` (default) |
+| GCP Vertex (Claude) | `https://<region>-aiplatform.googleapis.com/v1/projects/<proj>/...` | `GOOGLE_APPLICATION_CREDENTIALS` (OAuth via service-account JSON) | (varies per Vertex configuration) | `900` (default) |
+| On-prem Anthropic-compat proxy | `https://<your-proxy>/v1` | (your convention) | (varies) | `900` (default) |
+
+Naming convention: each provider's secret follows `<PROVIDER>_API_KEY` — matches the upstream conventions for `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `MOONSHOT_API_KEY`, etc. Customers reading the workflow YAML can grep the secret name to figure out which provider is wired.
+
+The `claude-timeout` input threads through every phase (selection, deep-search, preflight, audit, implementation, self-review). Bumping it for a slow backend lifts the ceiling on all phases uniformly — there's no per-phase timeout knob, and none is needed.
+
+
+## Auth-header matrix (and why setting both env vars breaks)
+
+Different backends expect different auth headers, and Claude Code picks the header from *which env var* you set. Verified by pointing the CLI at a local server and reading what arrived:
+
+| Env var | Header Claude Code sends | Right for |
+|---|---|---|
+| `ANTHROPIC_API_KEY` | `x-api-key: <value>` | Anthropic's own API |
+| `ANTHROPIC_AUTH_TOKEN` | `Authorization: Bearer <value>` | Gateways that expect Bearer auth: z.ai's GLM, Moonshot's Kimi, OpenRouter (all reject `x-api-key` with HTTP 401) |
+
+**On the `ANTHROPIC_` prefix.** It looks wrong on a run that never touches Anthropic, but it is *Claude Code's own* env namespace rather than a claim about who serves the request — the CLI accepts no other spelling, and namespaces other vendors the same way (`ANTHROPIC_BEDROCK_BASE_URL`, `ANTHROPIC_FOUNDRY_API_KEY`). Choose Claude Code as the agent and these are the variable names, whichever gateway bills the tokens. Codex and R-CLI have their own namespaces and take their routing on the command line.
+
+> **Set exactly one.** With **both** set, Claude Code does not choose between them — it sends **both headers on every request**, so an unrelated Anthropic key travels to whatever gateway the run is pointed at. The gateway reads the Bearer token and ignores the extra header, so the run *succeeds* and nothing looks wrong.
+>
+> The action prevents it where it cannot be undone: the agent's process environment is built explicitly at launch, and carries only the credential the selected provider needs. Nothing in a caller's workflow can add the other one back.
+>
+> Earlier revisions of this page recommended writing an empty value to `$GITHUB_ENV` to clear the unselected var. **That does not work.** A step-level `env:` in the caller's workflow takes precedence over `$GITHUB_ENV`, and every install declares each vendor's secret there so `provider` stays switchable — so the clear was silently overridden on every install that used it. Captured from a real run: `ANTHROPIC_API_KEY=(cleared)` was written, and the next step still saw it set.
+
+
+## Workflow template — per-dispatch provider + model switching
+
+The canonical pattern for A/B-comparing Anthropic vs a non-default backend on the same repo, using the action's built-in `provider` input:
+
+```yaml
+on:
+  workflow_dispatch:
+    inputs:
+      provider:
+        description: 'Which model provider to route Claude Code at.'
+        type: choice
+        required: false
+        default: 'anthropic'
+        options:
+          - anthropic
+          - zai
+          - moonshot
+      model:
+        description: 'Specific model name (e.g. claude-opus-4-8, glm-5.2, kimi-k3). Empty = provider default.'
+        required: false
+        default: ''
+      search-method:
+        description: 'Optional method query — searches for the top-hit paper and implements it.'
+        required: false
+        default: ''
+
+jobs:
+  recommend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: remyxai/outrider@v1
+        env:
+          REMYX_API_KEY: ${{ secrets.REMYX_API_KEY }}
+          # Pass every backend's secret the workflow might select. The
+          # action reads only the one matching `provider`; the rest are
+          # ignored. Skip any secret your fork doesn't have configured.
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ZAI_API_KEY: ${{ secrets.ZAI_API_KEY }}
+          MOONSHOT_API_KEY: ${{ secrets.MOONSHOT_API_KEY }}
+        with:
+          interest-id: <uuid>
+          search-method: ${{ inputs.search-method }}
+          provider: ${{ inputs.provider }}
+          model: ${{ inputs.model }}
+```
+
+Key properties:
+
+- Default behavior unchanged: `provider=''` (unset) preserves the pre-v1.x action behavior — no auth manipulation, `model-base-url` passes through as-is
+- Auth resolution is the action's job: the action's Configure step picks the correct auth env var per provider (Bearer for zai/moonshot, x-api-key for anthropic) and sets `ANTHROPIC_BASE_URL` from a fixed per-provider map. No fork-side case-switch to maintain.
+- Fails clean if the required secret is missing: `provider=moonshot` with no `MOONSHOT_API_KEY` in the caller's env block errors before any Claude call
+- Per-dispatch switchable: dispatch with `provider=zai` or `provider=moonshot` to route through that vendor for one run; default cron runs stay on Anthropic
+- Model selection independent of provider: `--model glm-5.2` and `--model glm-4.6` both work with `--provider zai`; `--model kimi-k3` and `--model kimi-k2.7-code` both work with `--provider moonshot`; `--model claude-opus-4-8` and `--model claude-sonnet-4-6` both work with `--provider anthropic`. Setting `--model` also gives per-model cost accuracy (see Cost telemetry below).
+- Custom / on-prem endpoints: set `provider: custom` + `model-base-url: <your-url>` + supply `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN` in env directly. The action's provider shortlist is a UX helper for the common cases; `custom` is the escape hatch for anything else.
+
+
+## Cost telemetry
+
+Outrider tracks token counts straight from each Claude Code response envelope. Cost is computed from `tokens × rates`, with rate-table coverage per backend:
+
+| `cost_basis` value | Meaning |
+|---|---|
+| `claude_code_envelope` | Default Anthropic path — the CLI's `total_cost_usd` field is authoritative because the CLI knows Anthropic's rates |
+| `backend_rate_table` | Outrider has per-model rate rows for the configured backend (currently: `api.z.ai` covers `glm-5.2`/`glm-4.6`; `api.moonshot.ai` covers `kimi-k3`/`kimi-k2.7-code`/`kimi-k2.7-code-highspeed`). Cost is computed from `tokens × per-model rates`, keyed by `ANTHROPIC_MODEL` (or the envelope's `model` field when present) and overriding the CLI's Anthropic-rate estimate |
+| (none + step-summary warning) | Backend isn't in the rate table; falling back to the CLI's value with a "may be approximate" annotation. Token counts stay accurate; dollars are approximate by however much the backend's pricing differs from Anthropic's |
+| `agent_envelope` | A non-Claude agent reported authoritative dollars itself (R-CLI's `usage` event carries `costUsd`), so its figure is used directly |
+| `unavailable` | The agent reports tokens but no dollars, and the endpoint host has no rate row — Outrider reports no cost rather than a fabricated `$0.00`. Token counts stay exact |
+| `backend_rate_table_approx` | The host has a rate table but the named model has no row, so the figure uses the host's default-tier rates. The step summary says "approximated from" rather than "computed from" |
+
+When `ANTHROPIC_MODEL` names a model not in the host's rate row, cost is computed at the host's default-tier rates (glm-5.2 for z.ai; kimi-k3 for Moonshot) — off by the tier delta, up to 3-4x on tier pairs — and reported as `backend_rate_table_approx`. `glm-5.3` is in that position today: it is the `provider: zai` default and has no rate row yet. A run that names no model keeps `backend_rate_table`. A backend with no rate table at all reports accurate tokens and a step-summary note.
+
+
+The step summary shows the agent + backend pair on every run:
+
+```
+**Cost & tokens this run**
+- Agent: Claude Code → z.ai (GLM)
+- Cost: `$0.0258` (computed from z.ai (GLM) PAYG rates)
+- Tokens: 18,200 in / 6,800 out
+- Claude calls: 5
+```
+
+
+## Troubleshooting: HTTP 401 from a non-Anthropic backend
+
+The action runs a startup auth-env validation before any agent call that catches the most common misconfigurations — missing var, the literal `-` value (from `gh secret set --body -` stdin-disconnect ambiguity), suspiciously short values, leading/trailing whitespace, and both `ANTHROPIC_API_KEY` + `ANTHROPIC_AUTH_TOKEN` set non-empty under a non-default backend. If the check fires it surfaces an ERROR with a short hash + length diagnostic (the value itself is never echoed into the log) and exits non-zero before wasting any clone or prompt-build work.
+
+When the startup check passes but a run still fails with `Failed to authenticate. API Error: 401`, work down the remaining checklist:
+
+### 1. Did the startup check log a warning?
+
+The action emits a `⚠ auth check:` warning (non-fatal) on a few softer conditions — leading/trailing whitespace was stripped, or both env vars are set under a non-default backend. The warning text names the fix. If you see one, address it first.
+
+### 2. Is the secret value actually correct?
+
+Length and shape can be fine while the value itself is stale or wrong. Probe the backend directly with the same env var the action receives — if the curl succeeds with HTTP 200, the env propagation is fine and the issue is inside Claude Code; if the curl also returns 401, the secret is wrong:
+
+```yaml
+- name: Diagnostic — direct backend probe
+  shell: bash
+  run: |
+    code=$(curl -sS -o /tmp/probe.json -w "%{http_code}" \
+      -X POST "https://api.z.ai/api/anthropic/v1/messages" \
+      -H "Authorization: Bearer $ANTHROPIC_AUTH_TOKEN" \
+      -H "anthropic-version: 2023-06-01" \
+      -H "content-type: application/json" \
+      --data '{"model":"glm-4.6","max_tokens":8,"messages":[{"role":"user","content":"hi"}]}')
+    echo "DIAG: backend probe → HTTP $code"
+    head -c 200 /tmp/probe.json
+```
+
+If you need to re-set a secret, prefer file input (avoids the `--body -` stdin ambiguity that the startup check now catches):
+
+```bash
+printf '%s' "$YOUR_KEY" > /tmp/key
+gh secret set ZAI_API_KEY --repo owner/name < /tmp/key
+rm -f /tmp/key
+```
+
+### 3. Claude Code's bundled client auth precedence
+
+If the direct probe returns 200 but the action still gets 401, check whether Claude Code's bundled client has its own auth-config precedence (some versions may prefer cached OAuth credentials over env vars).
+
+
+
+<!-- BEGIN GENERATED: agent-axis (scripts/gen_backends_doc.py) -->
+
+## Coding agents (the `agent` input)
+
+`provider` selects a **model** backend; `agent` selects the **coding-agent CLI** that drives the implementation. They are separate axes, and each agent speaks exactly one model-API family — so which providers an agent can reach follows from that, rather than from a list someone maintains by hand.
+
+```
+agent --speaks--> API family <--serves-- provider
+```
+
+| `agent` | Speaks | Install |
+|---|---|---|
+| `backboard` | native-router | `BACKBOARD_INSTALL=<dir> curl -fsSL https://app.backboard.io/api/cli \| sh` |
+| `claude` | anthropic-messages | `npm install -g @anthropic-ai/claude-code` |
+| `codex` | openai-responses | `npm install -g @openai/codex` |
+
+Leave `agent` empty for Claude Code — every existing workflow keeps its exact behavior.
+
+### Which pairs work
+
+| `agent` | `provider` | Secret you set | Endpoint | Default model | Verified |
+|---|---|---|---|---|---|
+| `backboard` | `(any — agent-resolved)` | `BACKBOARD_API_KEY` | — | _(agent default)_ | yes |
+| `claude` | `anthropic` | `ANTHROPIC_API_KEY` | (vendor default) | _(agent default)_ | yes |
+| `claude` | `zai` | `ZAI_API_KEY` | https://api.z.ai/api/anthropic | glm-5.3 | yes |
+| `claude` | `moonshot` | `MOONSHOT_API_KEY` | https://api.moonshot.ai/anthropic | kimi-k3 | yes |
+| `claude` | `openrouter` | `OPENROUTER_API_KEY` | https://openrouter.ai/api | _(agent default)_ | yes² |
+| `claude` | `custom` | `(agent's own)` | _you supply `model-base-url`_ | _(agent default)_ | **not verified** |
+| `codex` | `openai` | `OPENAI_API_KEY` | (vendor default) | _(agent default)_ | yes |
+| `codex` | `moonshot` | `MOONSHOT_API_KEY` | https://api.moonshot.ai/v1 | kimi-k3 | yes |
+| `codex` | `openrouter` | `OPENROUTER_API_KEY` | https://openrouter.ai/api/v1 | _(agent default)_ | yes² |
+| `codex` | `custom` | `(agent's own)` | _you supply `model-base-url`_ | _(agent default)_ | **not verified** |
+
+"Verified" means a real run reached that vendor's endpoint end-to-end. An unverified pair still runs, but the action logs a warning naming the `provider: custom` + gateway workaround rather than claiming support it hasn't demonstrated.
+
+² OpenRouter — reserves the requested max_tokens against your balance before calling the model, and both CLIs request a lot by default (Codex's is 131,072), so a thin balance can answer HTTP 402 before the model is reached — verified with real completions on a zero-balance account using smaller-output models.
+
+Two rejections are deliberate rather than missing: `agent: codex` with `provider: anthropic` fails because Anthropic serves the Messages API, not OpenAI Responses — and the reverse for `agent: claude` with `provider: openai`. Both errors name the agent that *does* serve the provider.
+
+This table and [`agent-matrix.json`](agent-matrix.json) are generated from the same registry, so they cannot drift from the code. The JSON is the machine-readable contract the `remyxai` CLI and the engine read.
+
+### Capabilities, and what happens when one is missing
+
+A backend may be partially capable and still usable — the affected telemetry degrades, the run does not fail.
+
+| Capability | `backboard` | `claude` | `codex` |
+|---|---|---|---|
+| `cost_usd` | yes | yes | — |
+| `guardrail_policy` | — | yes | — |
+| `oneshot_json` | yes | yes | yes |
+| `output_schema` | — | — | yes |
+| `stream_transcript` | yes | yes | yes |
+| `token_usage` | yes | yes | yes |
+| `turn_cap` | — | yes | — |
+| `web_research` | yes | yes | yes¹ |
+
+¹ Only on the vendor's own endpoint. The capability comes from a server-side tool that third-party implementations of the same wire protocol do not serve, so routing the agent elsewhere genuinely removes it and the run degrades as described below.
+
+| Missing | Effect on the run |
+|---|---|
+| `turn_cap` | `claude-timeout` becomes the only spend bound. Neither Codex nor R-CLI has a round-limit flag, so keep the timeout tight on cron-driven installs. |
+| `cost_usd` | Cost resolves from the per-host rate table instead of the CLI's own figure (`cost_basis: backend_rate_table`); with no rate row it reports `cost_basis: unavailable` rather than a fabricated `$0.00`. Token counts stay exact either way. |
+| `stream_transcript` | Selection coverage reports `basis: unavailable` and the coverage gate runs in `observe` mode, so a quiet agent is not punished for being quiet. Having the capability is not sufficient: an agent whose transcript carries no countable reads or searches reports the same basis rather than an under-explored pick. |
+| `web_research` | The staged research phase is skipped; the coding session runs without web context. |
+| `guardrail_policy` | The injection-hardening tool gate that Claude Code runs get is **not** in effect, and the run logs a warning saying so. The post-hoc diff validators still apply. |
+| `output_schema` | Verdict passes fall back to extracting JSON from the model's prose. |
+
+### Model selection per agent
+
+All three agents take the same `model` input. R-CLI addresses models as `<provider>/<model>`, so the action composes `provider` and `model` into that form for you — `provider: openai` + `model: gpt-5.5` becomes `--model openai/gpt-5.5`. An already-qualified `model` is left alone.
+
+### Codex and Chat-Completions providers
+
+`codex exec` 0.151.0 removed Chat-Completions support: a provider must serve an OpenAI **Responses** endpoint. A Chat-only provider (or a local ollama) needs a translating gateway in front of it, reached via `provider: custom` plus `model-base-url`.
+
+Two request fields also get pinned whenever Codex is routed off OpenAI, because Codex fills them in from its own model catalog and an unrecognized model leaves them in a shape strict gateways reject. Both were confirmed by capturing the request body off a local Responses mock:
+
+- `web_search="disabled"` — the server-side tool is OpenAI's, not part of the protocol. Offering it makes OpenRouter reject the whole request (`Server tool request failed`, HTTP 400) before the model is reached. The key is top-level and takes a string enum (`disabled`/`cached`/`indexed`/`live`); a boolean fails config loading, and the plausible-looking `tools.web_search` is an unknown key that Codex ignores while still offering the tool.
+- `model_reasoning_effort="medium"` — for an unrecognized model Codex sends `reasoning: {"summary": "auto"}` with no `effort` key, and OpenRouter answers `Reasoning is mandatory for this endpoint`.
+
+Neither is applied on OpenAI's own endpoint, where Codex's per-model defaults beat anything pinned here.
+
+<!-- END GENERATED: agent-axis -->
+
+## Related
+
+- [`customization.md`](customization.md) — overview of every action input
+- [`configuration.md`](configuration.md) — full reference table
