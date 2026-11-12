@@ -48,6 +48,7 @@ Hardened by [Chainguard](https://www.chainguard.dev) from the upstream action at
 | v1.8.1 | [`v1.8.1`](https://github.com/chainguard-actions/remyxai-outrider/tree/v1.8.1) | [`1dcbff5`](https://github.com/remyxai/outrider/commit/1dcbff5c76ec301b1f1dd2bbaa7071fb6fe07b62) | [`HARDENING.md`](https://github.com/chainguard-actions/remyxai-outrider/blob/v1.8.1/HARDENING.md) |
 | v1.9.0 | [`v1.9.0`](https://github.com/chainguard-actions/remyxai-outrider/tree/v1.9.0) | [`c022a29`](https://github.com/remyxai/outrider/commit/c022a2967a99f59cab50ac10854d10f5c43b08e4) | [`HARDENING.md`](https://github.com/chainguard-actions/remyxai-outrider/blob/v1.9.0/HARDENING.md) |
 | v1.9.1 | [`v1.9.1`](https://github.com/chainguard-actions/remyxai-outrider/tree/v1.9.1) | [`967085a`](https://github.com/remyxai/outrider/commit/967085a2e3ce0fa2f06563668de9222cf145bc70) | [`HARDENING.md`](https://github.com/chainguard-actions/remyxai-outrider/blob/v1.9.1/HARDENING.md) |
+| v1.9.2 | [`v1.9.2`](https://github.com/chainguard-actions/remyxai-outrider/tree/v1.9.2) | [`b7909fa`](https://github.com/remyxai/outrider/commit/b7909fa37db08a4b11f4a90a08fe358666537fd2) | [`HARDENING.md`](https://github.com/chainguard-actions/remyxai-outrider/blob/v1.9.2/HARDENING.md) |
 
 ## Privacy
 
