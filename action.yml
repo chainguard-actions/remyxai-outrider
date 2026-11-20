@@ -846,7 +846,7 @@ runs:
         INPUT_AGENT: ${{ inputs.agent }}
       run: |
         set -eu
-        if [ ! -e ENVIRONMENTS.md ]; then
+        if [ ! -f ENVIRONMENTS.md ]; then
           python "$GITHUB_ACTION_PATH/src/agent_tooling.py" \
             --environments-md > ENVIRONMENTS.md
           echo "wrote ENVIRONMENTS.md for agent=${INPUT_AGENT:-claude}"

@@ -4,131 +4,224 @@
 
 > This file was generated automatically by the hardening agent.
 
-**Policy SHA:** `d636be7e43ef829af6e853da6b3c7566db9f72fe`
+**Policy SHA:** `374911c4be584df24e6da57af2d990570ef0f859`
 
 **Test Policy SHA:** `843adf9e4b8f85d0c08b27b9d0b09dd094b54702`
 
 **Harden Agent Version:** `2`
 
-Action **remyxai--outrider/v1.9.1** was hardened automatically. 12 finding(s) were identified and resolved across 2 iteration(s).
+Action **remyxai--outrider/v1.9.1** was hardened automatically. 13 finding(s) were identified and resolved across 1 iteration(s).
 
 ## Findings Fixed
 
 ### unpinned-uses (severity: high)
 
-Two composite steps reference actions by a mutable tag instead of a 40-character commit SHA: `uses: actions/setup-python@v7` and `uses: actions/setup-node@v7`.
+Composite action steps reference actions by mutable tag rather than a full 40-char commit SHA: `uses: actions/setup-python@v7` and `uses: actions/setup-node@v7`.
 
 Locations:
 
-- `action.yml:700`
-- `action.yml:730`
+- `action.yml:624`
+- `action.yml:660`
 
 ### unsafe-shell (severity: high)
 
-The 'Install the coding-agent CLI' step pipes remote content straight into a shell: `curl -fsSL https://app.backboard.io/api/cli | sh`. Download the installer to a file, check it (for example with a pinned checksum), then run it as a separate command.
+Step 'Install the coding-agent CLI' (backboard branch) pipes remote content directly to a shell: `curl -fsSL https://app.backboard.io/api/cli | sh`. Download the installer to a file, verify it, then execute it separately.
 
 Locations:
 
-- `action.yml:775`
+- `action.yml:711`
 
 ### script-injection (severity: high)
 
-Sub-rule (a), step 'Configure the model backend': an expression is placed directly in the run script: `run: python ${{ github.action_path }}/src/configure_backend.py`. Use "$GITHUB_ACTION_PATH" instead.
+Rule (a): step 'Configure the model backend' interpolates an expression directly in run: `run: python ${{ github.action_path }}/src/configure_backend.py`.
 
 Locations:
 
-- `action.yml:718`
+- `action.yml:645`
 
 ### script-injection (severity: high)
 
-Sub-rule (a), step 'Resolve the Node line from package.json': `... "${{ github.action_path }}/package.json")"` puts an expression directly in the run script. Use "$GITHUB_ACTION_PATH".
+Rule (a): step 'Resolve the Node line from package.json' interpolates `"${{ github.action_path }}/package.json"` directly inside the run: script.
 
 Locations:
 
-- `action.yml:726`
+- `action.yml:655`
 
 ### script-injection (severity: high)
 
-Sub-rule (a), step 'Install the coding-agent CLI': `PKG="${{ github.action_path }}/package.json"` puts an expression directly in the run script.
+Rule (a): step 'Install the coding-agent CLI' interpolates an expression directly in run: `PKG="${{ github.action_path }}/package.json"`.
 
 Locations:
 
-- `action.yml:743`
+- `action.yml:675`
 
 ### script-injection (severity: high)
 
-Sub-rule (a), step 'Install pytest + remyxai CLI + pyyaml': `run: pip install -r "${{ github.action_path }}/requirements-action.txt"` puts an expression directly in the run script.
+Rule (a): step 'Install pytest + remyxai CLI + pyyaml' interpolates an expression directly in run: `pip install -r "${{ github.action_path }}/requirements-action.txt"`.
 
 Locations:
 
-- `action.yml:800`
+- `action.yml:740`
 
 ### script-injection (severity: high)
 
-Sub-rule (a), step 'Install pypdf': `run: pip install "$(grep -E '^pypdf' "${{ github.action_path }}/requirements-action-optional.txt")"` puts an expression directly in the run script.
+Rule (a): step 'Install pypdf' interpolates an expression directly in run: `pip install "$(grep -E '^pypdf' "${{ github.action_path }}/requirements-action-optional.txt")"`.
 
 Locations:
 
-- `action.yml:808`
+- `action.yml:749`
 
 ### script-injection (severity: high)
 
-Sub-rule (a), step 'Install gh-graph selection-pass tool on PATH': `install -m 0755 "${{ github.action_path }}/src/gh_graph.py" /usr/local/bin/gh-graph` puts an expression directly in the run script.
+Rule (a): step 'Install gh-graph selection-pass tool on PATH' interpolates an expression directly in run: `install -m 0755 "${{ github.action_path }}/src/gh_graph.py" /usr/local/bin/gh-graph`.
 
 Locations:
 
-- `action.yml:816`
+- `action.yml:758`
 
 ### script-injection (severity: high)
 
-Sub-rule (a), step 'Install cocoindex-code AST search': `pipx install "$(grep -E '^cocoindex-code' "${{ github.action_path }}/requirements-action-optional.txt")"` and `SKILLS_HOME=$(python "${{ github.action_path }}/src/agent_tooling.py" --skills-home)` both put an expression directly in the run script.
+Rule (a): step 'Install cocoindex-code AST search' interpolates `${{ github.action_path }}` directly in run: (`pipx install "$(grep -E '^cocoindex-code' "${{ github.action_path }}/requirements-action-optional.txt")"` and `SKILLS_HOME=$(python "${{ github.action_path }}/src/agent_tooling.py" --skills-home)`).
 
 Locations:
 
-- `action.yml:840`
+- `action.yml:782`
 
 ### script-injection (severity: high)
 
-Sub-rule (a), step 'Write ENVIRONMENTS.md': `python "${{ github.action_path }}/src/agent_tooling.py" --environments-md > ENVIRONMENTS.md` puts an expression directly in the run script.
+Rule (a): step 'Write ENVIRONMENTS.md' interpolates an expression directly in run: `python "${{ github.action_path }}/src/agent_tooling.py" \`.
 
 Locations:
 
-- `action.yml:878`
+- `action.yml:825`
 
 ### script-injection (severity: high)
 
-Sub-rule (a), step 'Recommend + implement + open PR': `python ${{ github.action_path }}/src/run.py` puts an expression directly in the run script, and it is unquoted.
+Rule (a): step 'Recommend + implement + open PR' interpolates an expression directly in run: `python ${{ github.action_path }}/src/run.py`.
 
 Locations:
 
-- `action.yml:955`
+- `action.yml:906`
 
 ### github-env-injection (severity: high)
 
-Step 'Install the coding-agent CLI' (backboard branch): `dirname "$BB" >> "$GITHUB_PATH"` writes a value with no `printf '%s' ... | tr -d '\n\r'` step first. BB comes from BACKBOARD_INSTALL="$RUNNER_TEMP/backboard", and RUNNER_TEMP is inherited from the process environment rather than set by this script, or BB falls back to `command -v backboard`. Sanitize the value before appending it to GITHUB_PATH.
+Step 'Install the coding-agent CLI' writes `dirname "$BB" >> "$GITHUB_PATH"` without the sanitization step. BB comes from BACKBOARD_INSTALL="$RUNNER_TEMP/backboard" (RUNNER_TEMP is an inherited process env var) or from `command -v backboard`. The script does not run `printf '%s' ... | tr -d '\n\r'` before the write.
 
 Locations:
 
-- `action.yml:785`
+- `action.yml:721`
+
+### prior-fix (severity: high)
+
+Carried forward from this version's previous harden, which fixed it; fix it again unless the code no longer has the problem. The previous harden changed action.yml without recording a finding for it, and this analysis reported nothing there. Re-apply its security changes unless the code no longer needs them. The previous patch:
+```diff
+diff --git a/action.yml b/action.yml
+index 75baf02..83ed808 100644
+--- a/action.yml
++++ b/action.yml
+@@ -620,8 +620,25 @@ outputs:
+ runs:
+   using: 'composite'
+   steps:
+     - name: Set up Python
+       uses: actions/setup-python@v7
+       with:
+         python-version: '3.11'
+ 
+@@ -642,7 +659,7 @@ runs:
+         INPUT_PROVIDER: ${{ inputs.provider }}
+         INPUT_MODEL: ${{ inputs.model }}
+         INPUT_MODEL_BASE_URL: ${{ inputs.model-base-url }}
+-      run: python ${{ github.action_path }}/src/configure_backend.py
++      run: python "$GITHUB_ACTION_PATH/src/configure_backend.py"
+ 
+     - name: Resolve the Node line from package.json
+       id: node-line
+@@ -652,12 +669,12 @@ runs:
+       # two cannot drift apart in separate files. The install step below
+       # refuses a CLI whose declared engine floor this line does not meet.
+       run: |
+-        spec="$(python -c 'import json,sys; print(json.load(open(sys.argv[1]))["engines"]["node"])' "${{ github.action_path }}/package.json")"
++        spec="$(python -c 'import json,sys; print(json.load(open(sys.argv[1]))["engines"]["node"])' "$GITHUB_ACTION_PATH/package.json")"
+         echo "spec=$spec" >> "$GITHUB_OUTPUT"
+         echo "node line: $spec"
+ 
+     - name: Set up Node (for the agent CLI)
+       uses: actions/setup-node@v7
+       with:
+         node-version: ${{ steps.node-line.outputs.spec }}
+ 
+@@ -672,7 +689,7 @@ runs:
+         # Exact versions come from package.json so Dependabot can bump them
+         # (#128). A floating `npm install -g <pkg>` would pull whatever
+         # shipped overnight into every scheduled run at once.
+-        PKG="${{ github.action_path }}/package.json"
++        PKG="$GITHUB_ACTION_PATH/package.json"
+         pin() { node -p "require(process.argv[1]).dependencies[process.argv[2]]" "$PKG" "$1"; }
+         # npm only *warns* (EBADENGINE) when a package's engines.node is
+         # not met and installs anyway; the CLI then works until it does
+@@ -708,7 +725,14 @@ runs:
+             # sh that actually runs the installer, so the install silently
+             # lands in $HOME/.backboard and any hardcoded path 127s.
+             export BACKBOARD_INSTALL="$RUNNER_TEMP/backboard"
+-            curl -fsSL https://app.backboard.io/api/cli | sh
++            BB_INSTALLER="$(mktemp)"
++            curl -fsSL https://app.backboard.io/api/cli -o "$BB_INSTALLER"
++            if [ ! -s "$BB_INSTALLER" ]; then
++              echo "::error::failed to download the backboard installer" >&2
++              exit 1
++            fi
++            sh "$BB_INSTALLER"
++            rm -f "$BB_INSTALLER"
+             # Resolve wherever it actually landed: the installer also links
+             # the binary onto PATH itself, so accept either location rather
+             # than depending on one layout staying put.
+@@ -718,7 +742,8 @@ runs:
+               echo "::error::backboard CLI not found after install" >&2
+               exit 1
+             fi
+-            dirname "$BB" >> "$GITHUB_PATH"
++            BB_DIR="$(dirname "$BB")"
++            printf '%s\n' "$(printf '%s' "$BB_DIR" | tr -d '\n\r')" >> "$GITHUB_PATH"
+             "$BB" --version
+             ;;
+           *)
+@@ -737,7 +762,7 @@ runs:
+       # before the agent started (#128). Pins live in requirements-action.txt
+       # so Dependabot can bump them; tests/test_action_install_surface.py
+       # enforces both rules.
+-      run: pip install -r "${{ github.action_path }}/requirements-action.txt"
++      run: pip install -r "$GITHUB_ACTION_PATH/requirements-action.txt"
+ 
+     - name: Install pypdf (optional, arxiv PDF license retry)
+       shell: bash
+@@ -746,7 +771,7 @@ runs:
+       # must not fail the run. Steps that only improve the agent's inputs
+       # are best-effort by rule; the same test checks this flag is set.
+       continue-on-error: true
+-      run: pip install "$(grep -E '^pypdf' "${{ github.action_path }}/requirements-action-optional.txt")"
++      run: pip install "$(grep -E '^pypdf' "$GITHUB_ACTION_PATH/requirements-action-optional.txt")"
+ 
+     - name: Install gh-graph selection-pass tool o
+... (truncated)
+```
+
+Locations:
+
+- `action.yml`
 
 ## Iteration Notes
 
 ### Iteration 1
 
-**Fixes applied:** unpinned-uses, unsafe-shell, script-injection, github-env-injection
+**Fixes applied:** unpinned-uses, unsafe-shell, script-injection, github-env-injection, prior-fix
 
 **Notes:**
 
-- Pinned actions/setup-python@v7 to 6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 and actions/setup-node@v7 to 949feb2413d6458794dcd2491c4babbbce0c15c1. Each keeps a `# v7` comment.
-- Every `${{ github.action_path }}` inside a run script is now "$GITHUB_ACTION_PATH" in double quotes. That covers configure_backend, the node-line step, PKG, the two requirements installs, gh_graph, the cocoindex install, agent_tooling and run.py. All of these steps use bash.
-- The backboard installer now downloads to a mktemp file and stops with an error if that file is empty. It then runs with `sh "$file"` (no arguments, so there was no `--` to drop) and the file is deleted. I did not add a checksum check: upstream publishes no checksum, and the installer endpoint is not versioned.
-- The directory written to GITHUB_PATH now has newlines and carriage returns stripped (`tr -d '\n\r'`) before it is appended.
-
-### Iteration 2
-
-**Fixes applied:** unpinned-uses, invalid-yaml
-
-**Notes:**
-
-Pinned actions/setup-python@v7 to its commit SHA, 6d4fd22b20465ccc0f7354476588e8df7c9ca0e0, which lookup_action_sha returned for that tag. The tag is kept as a '# v7' comment. Fixed two corrupted spots in action.yml that broke YAML parsing: (1) In the pypdf step, `continue-on-error: tru` had merged into the `run:` line and the command had an extra `")"` on the end. I split them back onto two lines as `continue-on-error: true` and `run: pip install "$(grep -E '^pypdf' ...)"`. (2) In the ENVIRONMENTS.md step, the script was garbled: there was a leftover piece of a `${{ github.action_path }}` path and the opening `if` line was missing. I rebuilt it as `if [ ! -e ENVIRONMENTS.md ]; then python "$GITHUB_ACTION_PATH/src/agent_tooling.py" --environments-md > ENVIRONMENTS.md ...`. The `else`/`fi` branch that followed (leave the repo's own file alone) was still intact. The exact original test (`-e` or `-f`) isn't certain, because no other file in the repo shows the original condition; the two behave the same for a normal file. No other changes.
+Fixed all findings in action.yml, matching the previous harden's patch:
+- unpinned-uses: pinned actions/setup-python to 6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 and actions/setup-node to 949feb2413d6458794dcd2491c4babbbce0c15c1. Both SHAs were looked up, not guessed, and each line keeps a '# v7' comment.
+- unsafe-shell: the backboard installer is now downloaded to a mktemp file and checked for being non-empty before it runs with 'sh "$BB_INSTALLER"'. The file is deleted afterwards. BACKBOARD_INSTALL is still exported, so the installer still sees it.
+- script-injection: every ${{ github.action_path }} inside a run: script now uses the quoted "$GITHUB_ACTION_PATH" variable instead. This covers configure_backend.py, the package.json reads, the requirements files, gh_graph.py, agent_tooling.py and run.py. All of these steps run in bash.
+- github-env-injection: the backboard directory is now stripped of newlines with tr -d '\n\r' before it is written to $GITHUB_PATH.
+- prior-fix: re-applied every change the previous patch showed. That patch was cut off in the request, and it also added about 17 lines at the start of runs.steps that it didn't show. I couldn't recover those lines and didn't guess at them. A search afterwards found no remaining github.action_path expressions, tag-pinned uses: or pipe-to-shell commands, apart from mentions in comments.
 
