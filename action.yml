@@ -736,7 +736,7 @@ runs:
             # sh that actually runs the installer, so the install silently
             # lands in $HOME/.backboard and any hardcoded path 127s.
             export BACKBOARD_INSTALL="$RUNNER_TEMP/backboard"
-            BB_INSTALLER="$(mktemp "$RUNNER_TEMP/backboard-install.XXXXXX.sh")"
+            BB_INSTALLER="$(mktemp "$RUNNER_TEMP/backboard-install.XXXXXX")"
             curl -fsSL https://app.backboard.io/api/cli -o "$BB_INSTALLER"
             if [ ! -s "$BB_INSTALLER" ]; then
               echo "::error::backboard installer download is empty" >&2
@@ -754,7 +754,8 @@ runs:
               exit 1
             fi
             BB_DIR="$(dirname "$BB")"
-            printf '%s\n' "$(printf '%s' "$BB_DIR" | tr -d '\n\r')" >> "$GITHUB_PATH"
+            BB_DIR_SAFE="$(printf '%s' "$BB_DIR" | tr -d '\n\r')"
+            printf '%s\n' "$BB_DIR_SAFE" >> "$GITHUB_PATH"
             "$BB" --version
             ;;
           *)
